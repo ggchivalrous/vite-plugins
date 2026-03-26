@@ -1,0 +1,29 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+catalogMode: prefer
+
+catalog:
+  "@types/node": ^25.5.0
+  typescript: ^6.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@latest
+  vitest: npm:@voidzero-dev/vite-plus-test@latest
+  vite-plus: latest
+  bumpp: 11.0.1
+  "@typescript/native-preview": 7.0.0-dev.20260316.1
+  happy-dom: 20.8.8
+  vue: 3.5.31
+
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
