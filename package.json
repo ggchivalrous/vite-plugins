@@ -2,6 +2,27 @@
   "name": "vite-plugins",
   "version": "0.0.0",
   "private": true,
+  "description": "Vite Plugin",
+  "keywords": [
+    "monorepo",
+    "mpa",
+    "ssg",
+    "vite",
+    "vite-plugin",
+    "vite-ssg",
+    "vue",
+    "vue3"
+  ],
+  "homepage": "https://github.com/ggchivalrous/vite-plugins#readme",
+  "bugs": {
+    "url": "https://github.com/ggchivalrous/vite-plugins/issues"
+  },
+  "license": "MIT",
+  "author": "ggchivalrous",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ggchivalrous/vite-plugins.git"
+  },
   "type": "module",
   "scripts": {
     "ready": "vp fmt && vp lint && vp run test -r && vp run build -r",

@@ -1,8 +1,14 @@
-# vite-plugin-ssg 重构总结
+# vite-plugin-ssg
+
+## 起因
+
+> 由于作者在vite项目中弄了一个多入口的MPA多页应用，每个页面都需要SSG渲染
+>
+> 使用 **vite-ssg** 包进行SSG时发现这个包似乎对多入口的应用不起作用，所以请 Ai 设计了这么一个Vite SSG插件
 
 ## 设计理念
 
-将项目内部的 SSG 脚本重构为**可独立发布的通用 Vite 插件**，核心原则：
+核心原则：
 
 1. **零项目假设** — 不假设任何目录结构（`.generated`、`html` 子目录等）
 2. **框架无关** — 默认支持 Vue，但通过 `render` 回调可用于 React、Solid 等任何框架
@@ -82,40 +88,3 @@ ssgPlugin({
   },
 });
 ```
-
-## 项目内适配
-
-你的项目通过 `entries` 回调 + `toolsConfig` 动态生成入口列表：
-
-```ts
-ssgPlugin({
-  entries: () => {
-    const result = [];
-    for (const config of toolsConfig) {
-      // ... 从 MPA 配置中构建 SSGEntry 列表
-      result.push({
-        entry: `/.generated/${outputDir}/main.ts`,
-        html: `${outputDir}/index.html`,
-      });
-    }
-    return result;
-  },
-  ssrViteConfig: {
-    ssr: { noExternal: ["naive-ui", "vueuc", "date-fns"] },
-    resolve: { alias: { "/.generated": "..." } },
-  },
-});
-```
-
-> [!NOTE]
-> 所有 `.generated` 目录、`naive-ui` 等项目特定信息现在都由**使用方**配置传入，插件本身不包含任何项目假设。
-
-## 涉及文件
-
-| 文件                                                                                                | 变更                             |
-| --------------------------------------------------------------------------------------------------- | -------------------------------- |
-| [vite-plugin-ssg.ts](file:///Users/emt/custom/tools-web/app/tools-website/build/vite-plugin-ssg.ts) | 通用 SSG 插件（可发布为 npm 包） |
-| [vite-plugin.ts](file:///Users/emt/custom/tools-web/app/tools-website/build/vite-plugin.ts)         | 项目中的使用示例                 |
-| [pnpm-workspace.yaml](file:///Users/emt/custom/tools-web/pnpm-workspace.yaml)                       | 添加 happy-dom 到 build catalog  |
-| [package.json](file:///Users/emt/custom/tools-web/app/tools-website/package.json)                   | 添加 happy-dom 依赖引用          |
-| [scripts/ssg.ts](file:///Users/emt/custom/tools-web/app/tools-website/scripts/ssg.ts)               | ⚠️ 可安全删除                    |

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createApp as createVueApp } from "vue";
 import App from "./app.vue";
 
