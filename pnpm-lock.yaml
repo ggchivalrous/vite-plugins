@@ -12,6 +12,9 @@ catalogs:
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260316.1
       version: 7.0.0-dev.20260316.1
+    '@vitejs/plugin-vue':
+      specifier: 6.0.5
+      version: 6.0.5
     bumpp:
       specifier: 11.0.1
       version: 11.0.1
@@ -41,6 +44,10 @@ importers:
         version: 0.1.14(@types/node@25.5.0)(happy-dom@20.8.8)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.2(@types/node@25.5.0)(jiti@2.6.1)(yaml@2.8.3))(yaml@2.8.3)
 
   packages/vite-ssg:
+    dependencies:
+      vite:
+        specifier: npm:@voidzero-dev/vite-plus-core@latest
+        version: '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -48,6 +55,9 @@ importers:
       '@typescript/native-preview':
         specifier: 'catalog:'
         version: 7.0.0-dev.20260316.1
+      '@vitejs/plugin-vue':
+        specifier: 'catalog:'
+        version: 6.0.5(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(vue@3.5.31(typescript@6.0.2))
       bumpp:
         specifier: 'catalog:'
         version: 11.0.1
@@ -57,9 +67,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
-      vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@latest
-        version: '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.1.14(@types/node@25.5.0)(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(happy-dom@20.8.8)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)
@@ -489,6 +496,9 @@ packages:
   '@rolldown/pluginutils@1.0.0-rc.11':
     resolution: {integrity: sha512-xQO9vbwBecJRv9EUcQ/y0dzSTJgA7Q6UVN7xp6B81+tBGSLVAK03yJ9NkJaUA7JFD91kbjxRSC/mDnmvXzbHoQ==}
 
+  '@rolldown/pluginutils@1.0.0-rc.2':
+    resolution: {integrity: sha512-izyXV/v+cHiRfozX62W9htOAvwMo4/bXKDrQ+vom1L1qRuexPock/7VZDAhnpHCLNejd3NJ6hiab+tO0D44Rgw==}
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -548,6 +558,13 @@ packages:
   '@typescript/native-preview@7.0.0-dev.20260316.1':
     resolution: {integrity: sha512-s+QGNx+3zxTZBuZw3oNOFlHqpbmg0cTgBd/b6SRZ5mo3vFChkhflYqRW2IvTvU9a3PPX3bQAkQ/gWbDZCmNC3Q==}
     hasBin: true
+
+  '@vitejs/plugin-vue@6.0.5':
+    resolution: {integrity: sha512-bL3AxKuQySfk1iGcBsQnoRVexTPJq0Z/ixFVM8OhVJAP6ZXXXLtM7NFKWhLl30Kg7uTBqIaPXbh+nuQCuBDedg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+      vue: ^3.2.25
 
   '@voidzero-dev/vite-plus-core@0.1.14':
     resolution: {integrity: sha512-CCWzdkfW0fo0cQNlIsYp5fOuH2IwKuPZEb2UY2Z8gXcp5pG74A82H2Pthj0heAuvYTAnfT7kEC6zM+RbiBgQbg==}
@@ -1303,6 +1320,8 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.0-rc.11': {}
 
+  '@rolldown/pluginutils@1.0.0-rc.2': {}
+
   '@standard-schema/spec@1.1.0': {}
 
   '@tybys/wasm-util@0.10.1':
@@ -1357,6 +1376,12 @@ snapshots:
       '@typescript/native-preview-linux-x64': 7.0.0-dev.20260316.1
       '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260316.1
       '@typescript/native-preview-win32-x64': 7.0.0-dev.20260316.1
+
+  '@vitejs/plugin-vue@6.0.5(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(vue@3.5.31(typescript@6.0.2))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.0-rc.2
+      vite: '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'
+      vue: 3.5.31(typescript@6.0.2)
 
   '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.3)':
     dependencies:

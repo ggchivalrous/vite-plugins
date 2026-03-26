@@ -6,10 +6,6 @@ export default defineConfig({
   },
   exports: true,
   deps: {
-    neverBundle: [
-      "vite",
-      "happy-dom",
-      "vue/server-renderer",
-    ],
+    neverBundle: ["vite", "happy-dom", "vue/server-renderer"],
   },
 });
