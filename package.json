@@ -1,5 +1,5 @@
 {
-  "name": "ggcv-plugins",
+  "name": "vite-plugins",
   "version": "0.0.0",
   "private": true,
   "type": "module",
