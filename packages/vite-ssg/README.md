@@ -14,20 +14,21 @@
 2. **框架无关** — 默认支持 Vue，但通过 `render` 回调可用于 React、Solid 等任何框架
 3. **显式优于隐式** — 用户声明 `entries` 列表，而非扫描某个约定目录
 4. **配置继承** — 自动从 Vite `resolvedConfig` 中继承 `root`、`outDir`、`alias`
+5. **无需SSR判断** — 内部自带浏览器环境mock，虽然不保证百分百覆盖，但能减少非常多的SSR环境判断
 
 ## API 概览
 
 ### 核心选项
 
-| 选项             | 类型                               | 说明                                         |
-| ---------------- | ---------------------------------- | -------------------------------------------- |
-| `entries` ⚡必填 | `SSGEntry[]` \| `() => SSGEntry[]` | 需要预渲染的页面列表                         |
-| `render`         | `(ctx) => { html }`                | 自定义渲染函数（默认 Vue SSR）               |
-| `ssrViteConfig`  | `UserConfig`                       | SSR 服务器的 Vite 配置覆盖                   |
-| `mock`           | `boolean`                          | 是否安装 happy-dom Mock（默认 `true`）       |
-| `appSelector`    | `string`                           | HTML 占位标记（默认 `<div id="app"></div>`） |
-| `createAppFn`    | `string`                           | 入口导出函数名（默认 `createApp`）           |
-| `enabled`        | `boolean`                          | 是否启用（默认 `true`）                      |
+| 选项               | 类型                                   | 说明                                           |
+| ------------------ | -------------------------------------- | ---------------------------------------------- |
+| `entries` ⚡必填 | `SSGEntry[]` \| `() => SSGEntry[]` | 需要预渲染的页面列表                           |
+| `render`         | `(ctx) => { html }`                  | 自定义渲染函数（默认 Vue SSR）                 |
+| `ssrViteConfig`  | `UserConfig`                         | SSR 服务器的 Vite 配置覆盖                     |
+| `mock`           | `boolean`                            | 是否安装 happy-dom Mock（默认 `true`）       |
+| `appSelector`    | `string`                             | HTML 占位标记（默认 `<div id="app"></div>`） |
+| `createAppFn`    | `string`                             | 入口导出函数名（默认 `createApp`）           |
+| `enabled`        | `boolean`                            | 是否启用（默认 `true`）                      |
 
 ### `SSGEntry` 结构
 
