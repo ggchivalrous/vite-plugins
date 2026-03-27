@@ -43,6 +43,37 @@ importers:
         specifier: 'catalog:'
         version: 0.1.14(@types/node@25.5.0)(happy-dom@20.8.8)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.2(@types/node@25.5.0)(jiti@2.6.1)(yaml@2.8.3))(yaml@2.8.3)
 
+  packages/vite-mpa:
+    dependencies:
+      vite:
+        specifier: npm:@voidzero-dev/vite-plus-core@latest
+        version: '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.5.0
+      '@typescript/native-preview':
+        specifier: 'catalog:'
+        version: 7.0.0-dev.20260316.1
+      '@vitejs/plugin-vue':
+        specifier: 'catalog:'
+        version: 6.0.5(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(vue@3.5.31(typescript@6.0.2))
+      bumpp:
+        specifier: 'catalog:'
+        version: 11.0.1
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.1.14(@types/node@25.5.0)(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(happy-dom@20.8.8)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)
+      vitest:
+        specifier: npm:@voidzero-dev/vite-plus-test@latest
+        version: '@voidzero-dev/vite-plus-test@0.1.14(@types/node@25.5.0)(@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3))(happy-dom@20.8.8)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'
+      vue:
+        specifier: 'catalog:'
+        version: 3.5.31(typescript@6.0.2)
+
   packages/vite-ssg:
     dependencies:
       vite:

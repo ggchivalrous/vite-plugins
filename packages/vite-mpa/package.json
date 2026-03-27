@@ -1,0 +1,56 @@
+{
+  "name": "@ggcv/vite-plugin-mpa",
+  "version": "1.0.0",
+  "description": "Vite 多页应用插件",
+  "keywords": [
+    "mpa",
+    "vite",
+    "vite-plugin",
+    "vue"
+  ],
+  "homepage": "https://github.com/ggchivalrous/vite-plugins/tree/master/packages/vite-mpa#readme",
+  "bugs": {
+    "url": "https://github.com/ggchivalrous/vite-plugins/issues"
+  },
+  "license": "MIT",
+  "author": "ggchivalrous",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ggchivalrous/vite-plugins.git",
+    "directory": "packages/vite-mpa"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "typecheck": "tsc --noEmit",
+    "release": "bumpp",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "bumpp": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "vue": "catalog:"
+  },
+  "peerDependencies": {
+    "vite": "catalog:"
+  }
+}

@@ -20,15 +20,15 @@
 
 ### 核心选项
 
-| 选项               | 类型                                   | 说明                                           |
-| ------------------ | -------------------------------------- | ---------------------------------------------- |
-| `entries` ⚡必填 | `SSGEntry[]` \| `() => SSGEntry[]` | 需要预渲染的页面列表                           |
-| `render`         | `(ctx) => { html }`                  | 自定义渲染函数（默认 Vue SSR）                 |
-| `ssrViteConfig`  | `UserConfig`                         | SSR 服务器的 Vite 配置覆盖                     |
-| `mock`           | `boolean`                            | 是否安装 happy-dom Mock（默认 `true`）       |
-| `appSelector`    | `string`                             | HTML 占位标记（默认 `<div id="app"></div>`） |
-| `createAppFn`    | `string`                             | 入口导出函数名（默认 `createApp`）           |
-| `enabled`        | `boolean`                            | 是否启用（默认 `true`）                      |
+| 选项             | 类型                               | 说明                                         |
+| ---------------- | ---------------------------------- | -------------------------------------------- |
+| `entries` ⚡必填 | `SSGEntry[]` \| `() => SSGEntry[]` | 需要预渲染的页面列表                         |
+| `render`         | `(ctx) => { html }`                | 自定义渲染函数（默认 Vue SSR）               |
+| `ssrViteConfig`  | `UserConfig`                       | SSR 服务器的 Vite 配置覆盖                   |
+| `mock`           | `boolean`                          | 是否安装 happy-dom Mock（默认 `true`）       |
+| `appSelector`    | `string`                           | HTML 占位标记（默认 `<div id="app"></div>`） |
+| `createAppFn`    | `string`                           | 入口导出函数名（默认 `createApp`）           |
+| `enabled`        | `boolean`                          | 是否启用（默认 `true`）                      |
 
 ### `SSGEntry` 结构
 
