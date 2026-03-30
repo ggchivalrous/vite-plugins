@@ -1,43 +1,13 @@
-import { type Plugin, type ConfigEnv, loadConfigFromFile } from "vite";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, resolve, isAbsolute, basename } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { type ConfigEnv, loadConfigFromFile, type Plugin } from "vite";
+import { defaultAppTemp, defaultHtmlTemp, defaultMainTemp } from "./template";
 import type { Config, MetaTag, ViteMpaOptions } from "./type";
-import { defaultMainTemp, defaultAppTemp, defaultHtmlTemp } from "./template";
+import { calcRelativePrefix, createLogger, genMetas, scanMpaConfigFiles } from "./utils";
 
-function createLogger(verbose: boolean) {
-  return {
-    info: (msg: string) => verbose && console.log(`[vite-plugin-mpa] ℹ️ ${msg}`),
-    warn: (msg: string) => console.warn(`[vite-plugin-mpa] ⚠️ ${msg}`),
-    success: (msg: string) => console.log(`[vite-plugin-mpa] ✅ ${msg}`),
-  };
-}
+export type { Config, MetaTag, ViteMpaOptions };
 
-/**
- * 将 meta 标签配置数组渲染为 HTML 字符串
- */
-function genMetas(metas: MetaTag[]): string {
-  return metas
-    .map((meta) => {
-      const attrs = Object.entries(meta)
-        .map(([k, v]) => `${k}="${v}"`)
-        .join(" ");
-      return `  <meta ${attrs} />`;
-    })
-    .join("\n");
-}
-
-/**
- * 计算从 HTML 文件所在目录到 Vite root 的相对路径前缀
- *
- * HTML 文件路径规则：
- * - outputPath === 'index' → {htmlDir}/index.html（在 htmlDir 根部，深度 = segments 层）
- * - 其他 → {htmlDir}/{outputPath}/index.html（深度 = segments + 1 层）
- */
-function calcRelativePrefix(outputPath: string): string {
-  const segments = outputPath.split("/").length;
-  const depth = outputPath === "index" ? segments : segments + 1;
-  return "../".repeat(depth);
-}
+const defaultConfigNames = ["mpa.config.ts", "mpa.config.js", "mpa.config.mjs", "mpa.config.cjs"];
 
 /**
  * 渲染最终的 HTML 内容
@@ -83,25 +53,6 @@ function getTemplateContent(
 }
 
 /**
- * 递归扫描目录，收集指定文件名的所有完整路径
- */
-function scanMpaConfigFiles(dir: string, fileName: string): string[] {
-  const result: string[] = [];
-  if (!existsSync(dir)) return result;
-
-  for (const file of readdirSync(dir)) {
-    const fullPath = join(dir, file);
-    const stat = statSync(fullPath);
-    if (stat.isDirectory() && file !== "node_modules" && file !== ".git") {
-      result.push(...scanMpaConfigFiles(fullPath, fileName));
-    } else if (stat.isFile() && file === fileName) {
-      result.push(fullPath);
-    }
-  }
-  return result;
-}
-
-/**
  * 从 Vite loadConfigFromFile 的返回值中提取 Config 数组
  */
 function extractConfigArray(raw: unknown): Config[] {
@@ -111,8 +62,8 @@ function extractConfigArray(raw: unknown): Config[] {
   // 支持 defineMpaConfig() 的返回格式
   if (value.__viteMpaPluginConfig !== undefined) {
     value = value.__viteMpaPluginConfig;
-  } else if (value.toolsConfig !== undefined) {
-    value = value.toolsConfig;
+  } else if (value.config !== undefined) {
+    value = value.config;
   } else if (value.default !== undefined) {
     value = value.default;
     // 嵌套 defineMpaConfig
@@ -129,22 +80,22 @@ function extractConfigArray(raw: unknown): Config[] {
 /**
  * 根据插件选项加载完整的 Config 列表
  */
-async function readToolsConfig(
+async function readConfig(
   options: ViteMpaOptions,
   configEnv: ConfigEnv,
   rootDir: string,
   logger: ReturnType<typeof createLogger>,
 ): Promise<Config[]> {
-  // 1. 直接传入数组
-  if (Array.isArray(options.toolsConfig)) {
-    return options.toolsConfig;
+  // 直接配置
+  if (Array.isArray(options.config)) {
+    return options.config;
   }
 
-  // 2. 传入配置文件路径
-  if (typeof options.toolsConfig === "string") {
-    const configPath = isAbsolute(options.toolsConfig)
-      ? options.toolsConfig
-      : resolve(rootDir, options.toolsConfig);
+  // 配置文件路径
+  if (typeof options.config === "string") {
+    const configPath = isAbsolute(options.config)
+      ? options.config
+      : resolve(rootDir, options.config);
 
     if (existsSync(configPath)) {
       const res = await loadConfigFromFile(configEnv, configPath, rootDir);
@@ -156,7 +107,7 @@ async function readToolsConfig(
     return [];
   }
 
-  // 3. 扫描目录
+  // 扫描指定目录
   if (options.scanDir) {
     const scanDirPath = isAbsolute(options.scanDir)
       ? options.scanDir
@@ -167,8 +118,7 @@ async function readToolsConfig(
       return [];
     }
 
-    const scanFileName = options.scanFile || "vite-mpa.ts";
-    const configFiles = scanMpaConfigFiles(scanDirPath, scanFileName);
+    const configFiles = scanMpaConfigFiles(scanDirPath, options.scanFile || defaultConfigNames);
     logger.info(`在 ${scanDirPath} 中发现 ${configFiles.length} 个配置文件`);
 
     const mergedConfigs: Config[] = [];
@@ -181,14 +131,12 @@ async function readToolsConfig(
     return mergedConfigs;
   }
 
-  // 4. 在 baseDir 查找默认配置文件
+  // 在 baseDir 查找默认配置文件
   const baseDir = options.baseDir
     ? isAbsolute(options.baseDir)
       ? options.baseDir
       : resolve(rootDir, options.baseDir)
     : rootDir;
-
-  const defaultConfigNames = ["mpa.config.ts", "mpa.config.js", "mpa.config.mjs", "mpa.config.cjs"];
 
   for (const name of defaultConfigNames) {
     const configPath = resolve(baseDir, name);
@@ -220,16 +168,16 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
       const generatedDir = resolvePath(options.generatedDir, ".generated");
       const generatedDirName = basename(generatedDir);
 
-      if (!existsSync(generatedDir)) {
-        mkdirSync(generatedDir, { recursive: true });
+      // 清空目录
+      if (existsSync(generatedDir)) {
+        rmSync(generatedDir, { recursive: true });
       }
+      mkdirSync(generatedDir, { recursive: true });
 
-      const toolsConfig = await readToolsConfig(options, configEnv, rootDir, logger);
+      const mpaConfig = await readConfig(options, configEnv, rootDir, logger);
 
-      if (!toolsConfig || toolsConfig.length === 0) {
-        logger.warn(
-          "未提供 MPA 页面配置。如需生成多个入口，请通过 toolsConfig、scanDir 或配置文件指定。",
-        );
+      if (!mpaConfig || mpaConfig.length === 0) {
+        logger.warn("未提供 MPA 页面配置。如需生成多个入口，请通过 config或scanDir。");
         return;
       }
 
@@ -246,18 +194,18 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
 
       const entries: Record<string, string> = {};
 
-      for (const config of toolsConfig) {
+      for (const config of mpaConfig) {
         const appEntry = config.appEntry ?? "index";
         const entryList = Array.isArray(appEntry) ? appEntry : [appEntry];
 
         for (const entry of entryList) {
           // 确定生成目录名和 HTML 输出路径名
           const isDefaultEntry = entry === "index";
-          // 仅当默认入口时 output 才有意义（子入口不支持 output 重定向）
-          const outputPath = isDefaultEntry
-            ? (config.output ?? config.page)
-            : `${config.page}/${entry}`;
+          const outputDefaultEntry = config.output === "index";
 
+          // 仅当默认入口时 output 才有意义（子入口不支持 output 重定向）
+          // 该支持是为了 home 或其他主页 页面可以直接指定为 /index.html
+          const outputPath = isDefaultEntry ? config.page : `${config.page}/${entry}`;
           const pageFile = isDefaultEntry ? `${config.page}/index` : `${config.page}/${entry}`;
           const generatedEntryDir = resolve(generatedDir, outputPath);
 
@@ -275,6 +223,7 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
           writeFileSync(
             appPath,
             appTempStr
+              // [TODO] 这里的导入有硬编码，需要优化
               .replace("// @Page", `import Page from '@pages/${pageFile}.vue'`)
               .replace("// @Main", `import AppMain from '@/tool-app-main.vue'`),
             "utf-8",
@@ -285,7 +234,7 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
           const htmlContent = generateHtml(htmlTempStr, outputPath, config, generatedDirName);
           const htmlPath = join(
             generatedDir,
-            outputPath === "index" ? "index.html" : `${outputPath}/index.html`,
+            outputDefaultEntry ? "index.html" : `${outputPath}/index.html`,
           );
           const htmlDirPath = dirname(htmlPath);
           if (!existsSync(htmlDirPath)) {
@@ -299,7 +248,7 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
       }
 
       logger.success(
-        `✨ 共处理 ${toolsConfig.length} 个配置，生成 ${Object.keys(entries).length} 个页面入口`,
+        `✨ 共处理 ${mpaConfig.length} 个配置，生成 ${Object.keys(entries).length} 个页面入口`,
       );
 
       // 合并已有的 rollupOptions.input
@@ -327,8 +276,6 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
     },
   };
 }
-
-// ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
 /**
  * 定义 MPA 配置（用于配置文件中，提供类型提示）。

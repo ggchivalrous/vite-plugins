@@ -64,7 +64,7 @@ export interface ViteMpaOptions {
    * - 传入配置文件路径字符串（如 `'./mpa.config.ts'`）：从文件加载。
    * - 不传入：依次尝试 `scanDir` 扫描 → 在 `baseDir` 查找默认配置文件。
    */
-  toolsConfig?: Config[] | string;
+  config?: Config[] | string;
 
   /**
    * 扫描多页配置的目录（当未通过 `toolsConfig` 指定全量配置时生效）。

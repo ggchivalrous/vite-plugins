@@ -28,7 +28,9 @@
     "ready": "vp fmt && vp lint && vp run test -r && vp run build -r",
     "dev": "vp run website#dev",
     "prepare": "vp config",
-    "vite-ssg": "pnpm --filter vite-plugin-ssg"
+    "vite-ssg": "pnpm --filter @ggcv/vite-plugin-ssg",
+    "vite-mpa": "pnpm --filter @ggcv/vite-plugin-mpa",
+    "app-test": "pnpm --filter test"
   },
   "devDependencies": {
     "vite-plus": "catalog:"
