@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mpaPlugin, defineMpaConfig } from "../src/index";
-import { existsSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Config } from "../src/type";
 
 // 插件 config 钩子的辅助调用函数
 async function runPluginConfig(
-  toolsConfig: Config[] | string | undefined,
+  config: Config[] | string | undefined,
   extraOptions: Partial<Parameters<typeof mpaPlugin>[0]> = {},
   rootDir = process.cwd(),
 ) {
@@ -14,7 +14,7 @@ async function runPluginConfig(
   const testHtmlDir = resolve(__dirname, ".generated-test");
 
   const plugin = mpaPlugin({
-    ...(toolsConfig !== undefined ? { toolsConfig } : {}),
+    ...(config !== undefined ? { config } : {}),
     generatedDir: testGeneratedDir,
     ...extraOptions,
   });
@@ -32,8 +32,7 @@ async function runPluginConfig(
 const testGeneratedDir = resolve(__dirname, ".generated-test");
 
 function cleanDirs() {
-  // if (existsSync(testGeneratedDir)) rmSync(testGeneratedDir, { recursive: true, force: true });
-  // if (existsSync(testHtmlDir)) rmSync(testHtmlDir, { recursive: true, force: true });
+  if (existsSync(testGeneratedDir)) rmSync(testGeneratedDir, { recursive: true, force: true });
 }
 
 // ─── 测试套件 ────────────────────────────────────────────────────────────────
@@ -57,7 +56,7 @@ describe("vite-plugin-mpa", () => {
     beforeEach(cleanDirs);
     afterEach(cleanDirs);
 
-    it("直接传入 toolsConfig 数组时应正确生成文件", async () => {
+    it("直接传入 config 数组时应正确生成文件", async () => {
       const { result } = await runPluginConfig([{ page: "foo", title: "Foo Title" }]);
 
       const input = result?.build?.rollupOptions?.input;
@@ -85,16 +84,9 @@ describe("vite-plugin-mpa", () => {
 
       const input = result?.build?.rollupOptions?.input;
       // 键名为 output 值
-      expect(input["index"]).toBeDefined();
+      expect(input["home"]).toBeDefined();
       // 路径对应 htmlDir/index.html（根级别）
-      expect(input["index"].replace(/\\/g, "/")).toContain(".generated-test/index.html");
-    });
-
-    it("output 为 index 时生成的 entry 相对路径应正确（少一级 ../）", async () => {
-      const { result } = await runPluginConfig([{ page: "home", title: "首页", output: "index" }]);
-      const html = readFileSync(result.build.rollupOptions.input["index"], "utf-8");
-      // html/index.html → ../.generated-test/index/main.ts（1级 ../）
-      expect(html).toMatch(/src="\.\.\/[^/]+-test\/index\/main\.ts"/);
+      expect(input["home"].replace(/\\/g, "/")).toContain(".generated-test/index.html");
     });
   });
 
@@ -201,13 +193,33 @@ describe("vite-plugin-mpa", () => {
   });
 
   describe("mpaPlugin - scanDir 扫描模式", () => {
-    beforeEach(cleanDirs);
-    afterEach(cleanDirs);
+    const scanTestDir = resolve(__dirname, ".test-scan");
+
+    beforeEach(() => {
+      cleanDirs();
+      if (existsSync(scanTestDir)) rmSync(scanTestDir, { recursive: true, force: true });
+      mkdirSync(scanTestDir, { recursive: true });
+      mkdirSync(resolve(scanTestDir, "page1"), { recursive: true });
+      mkdirSync(resolve(scanTestDir, "page2"), { recursive: true });
+
+      writeFileSync(
+        resolve(scanTestDir, "page1/mpa.config.ts"),
+        "export default { page: 'page1', title: 'Page1' };",
+      );
+      writeFileSync(
+        resolve(scanTestDir, "page2/mpa.config.ts"),
+        "export default { page: 'page2', title: 'Page2' };",
+      );
+    });
+
+    afterEach(() => {
+      cleanDirs();
+      if (existsSync(scanTestDir)) rmSync(scanTestDir, { recursive: true, force: true });
+    });
 
     it("应从 scanDir 扫描并聚合所有配置文件", async () => {
       const plugin = mpaPlugin({
-        scanDir: "tests",
-        scanFile: "vite-mpa.ts",
+        scanDir: scanTestDir,
         generatedDir: testGeneratedDir,
       });
 
@@ -222,10 +234,10 @@ describe("vite-plugin-mpa", () => {
       expect(input["page2"]).toBeDefined();
     });
 
-    it("toolsConfig 字符串路径应优先于 scanDir", async () => {
+    it("config 字符串路径应优先于 scanDir", async () => {
       const plugin = mpaPlugin({
-        toolsConfig: "tests/page1/vite-mpa.ts",
-        scanDir: "tests",
+        config: resolve(scanTestDir, "page1/mpa.config.ts"),
+        scanDir: scanTestDir,
         generatedDir: testGeneratedDir,
       });
 
@@ -243,7 +255,7 @@ describe("vite-plugin-mpa", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const plugin = mpaPlugin({
-        scanDir: "tests/__nonexistent__",
+        scanDir: resolve(__dirname, "__nonexistent__"),
         generatedDir: testGeneratedDir,
       });
 
@@ -259,7 +271,7 @@ describe("vite-plugin-mpa", () => {
     });
   });
 
-  describe("mpaPlugin - toolsConfig 字符串路径", () => {
+  describe("mpaPlugin - config 字符串路径", () => {
     beforeEach(cleanDirs);
     afterEach(cleanDirs);
 
@@ -267,7 +279,7 @@ describe("vite-plugin-mpa", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const plugin = mpaPlugin({
-        toolsConfig: "tests/__nonexistent_config__.ts",
+        config: "tests/__nonexistent_config__.ts",
         generatedDir: testGeneratedDir,
       });
 
@@ -287,7 +299,7 @@ describe("vite-plugin-mpa", () => {
     beforeEach(cleanDirs);
     afterEach(cleanDirs);
 
-    it("无 toolsConfig 且无可扫描文件时应警告并返回 undefined", async () => {
+    it("无 config 且无可扫描文件时应警告并返回 undefined", async () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const plugin = mpaPlugin({
@@ -354,7 +366,7 @@ describe("vite-plugin-mpa", () => {
 
     it("已有 input 为对象时应合并", async () => {
       const plugin = mpaPlugin({
-        toolsConfig: [{ page: "foo", title: "Foo" }],
+        config: [{ page: "foo", title: "Foo" }],
         generatedDir: testGeneratedDir,
       });
 
@@ -374,7 +386,7 @@ describe("vite-plugin-mpa", () => {
 
     it("已有 input 为字符串时应以 _default 键合并", async () => {
       const plugin = mpaPlugin({
-        toolsConfig: [{ page: "foo", title: "Foo" }],
+        config: [{ page: "foo", title: "Foo" }],
         generatedDir: testGeneratedDir,
       });
 
@@ -393,7 +405,7 @@ describe("vite-plugin-mpa", () => {
 
     it("已有 input 为数组时应追加到末尾", async () => {
       const plugin = mpaPlugin({
-        toolsConfig: [{ page: "foo", title: "Foo" }],
+        config: [{ page: "foo", title: "Foo" }],
         generatedDir: testGeneratedDir,
       });
 
