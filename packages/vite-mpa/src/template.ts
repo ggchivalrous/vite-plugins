@@ -17,13 +17,10 @@ export const defaultHtmlTemp = `
 export const defaultAppTemp = `
 <script setup lang="ts">
 // @Page
-// @Main
 </script>
 
 <template>
-  <AppMain>
-    <Page />
-  </AppMain>
+  <Page />
 </template>
 `;
 
