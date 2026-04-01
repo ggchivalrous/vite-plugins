@@ -13,10 +13,23 @@ export type MetaTag = Record<string, string>;
 
 export interface Config {
   /**
-   * 相对于 pages 目录的页面子目录名，用于定位页面组件文件。
-   * 例如 `'tools/my-tool'`，则会找 `pages/tools/my-tool/index.vue`。
+   * 相对于 `pagesDir` 目录的页面子目录名，通常也被用作路由/页面输出名。
+   * 例如 `'tools/my-tool'`，则默认会找 `<pagesDir>/tools/my-tool/index.vue`。
    */
   page: string;
+
+  /**
+   * 页面组件的实际文件路径（支持绝对路径或相对于 Vite root 的相对路径）。
+   * 如果指定了此项，将会直接使用该路径对应的文件，而忽略 `pagesDir` 和 `page` 组合匹配的行为。
+   * 仅在单入口（`appEntry` 非数组）时适用。
+   */
+  component?: string;
+
+  /**
+   * 页面组件所在的实际目录（支持绝对路径或相对于 Vite root 的相对路径）。
+   * 当你需要多个文件入口或不想全局修改 `pagesDir` 时，可以用它覆盖当前页面的查找基准路径。
+   */
+  sourceDir?: string;
 
   /**
    * 页面标题，注入到 HTML `<title>` 标签中。
@@ -107,9 +120,14 @@ export interface ViteMpaOptions {
    * 自定义 `app.vue` 模板文件路径（相对于 Vite root 或绝对路径）。
    * 模板中可使用以下占位符：
    * - `// @Page`：会被替换为页面组件导入语句
-   * - `// @Main`：会被替换为 AppMain 组件导入语句
    */
   appTemplate?: string;
+
+  /**
+   * 页面组件所在的目录（相对于 Vite root 或绝对路径）。
+   * @default 'src/pages'
+   */
+  pagesDir?: string;
 
   /**
    * 自定义 `main.ts` 模板文件路径（相对于 Vite root 或绝对路径）。

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { type ConfigEnv, loadConfigFromFile, type Plugin } from "vite";
+import { basename, dirname, isAbsolute, join, resolve, relative } from "node:path";
+import { type ConfigEnv, loadConfigFromFile, type Plugin, normalizePath } from "vite";
 import { defaultAppTemp, defaultHtmlTemp, defaultMainTemp } from "./template";
 import type { Config, MetaTag, ViteMpaOptions } from "./type";
 import { calcRelativePrefix, createLogger, genMetas, scanMpaConfigFiles } from "./utils";
@@ -153,6 +153,8 @@ async function readConfig(
 }
 
 export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
+  const urlMap: Record<string, string> = {};
+
   return {
     name: "vite-plugin-mpa",
     enforce: "pre",
@@ -167,6 +169,7 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
 
       const generatedDir = resolvePath(options.generatedDir, ".generated");
       const generatedDirName = basename(generatedDir);
+      const pagesDir = resolvePath(options.pagesDir, "src/pages");
 
       // 清空目录
       if (existsSync(generatedDir)) {
@@ -193,6 +196,7 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
       const htmlTempStr = getTemplateContent(options.template, defaultHtmlTemp, rootDir, logger);
 
       const entries: Record<string, string> = {};
+      const printList: Array<{ Page: string; Entry: string; Component: string }> = [];
 
       for (const config of mpaConfig) {
         const appEntry = config.appEntry ?? "index";
@@ -220,12 +224,27 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
 
           // 写入 app.vue
           const appPath = resolve(generatedEntryDir, "app.vue");
+          let absolutePagePath: string;
+
+          if (config.component) {
+            // 如果单独配置了组件本身（通常用于单入口页面）
+            absolutePagePath = normalizePath(
+              isAbsolute(config.component) ? config.component : resolve(rootDir, config.component),
+            );
+          } else if (config.sourceDir) {
+            // 如果单独配置了组件目录
+            const customDir = isAbsolute(config.sourceDir)
+              ? config.sourceDir
+              : resolve(rootDir, config.sourceDir);
+            absolutePagePath = normalizePath(resolve(customDir, `${pageFile}.vue`));
+          } else {
+            // 默认从全局的 pagesDir 获取
+            absolutePagePath = normalizePath(resolve(pagesDir, `${pageFile}.vue`));
+          }
+
           writeFileSync(
             appPath,
-            appTempStr
-              // [TODO] 这里的导入有硬编码，需要优化
-              .replace("// @Page", `import Page from '@pages/${pageFile}.vue'`)
-              .replace("// @Main", `import AppMain from '@/tool-app-main.vue'`),
+            appTempStr.replace("// @Page", `import Page from '${absolutePagePath}'`),
             "utf-8",
           );
           logger.info(`生成 app.vue: ${appPath}`);
@@ -244,12 +263,48 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
           logger.info(`生成 HTML: ${htmlPath}`);
 
           entries[outputPath] = htmlPath;
+          printList.push({
+            Page: config.page,
+            Entry: `/${outputDefaultEntry ? "index.html" : `${outputPath}/index.html`}`,
+            Component: normalizePath(relative(rootDir, absolutePagePath)),
+          });
+
+          // 记录 Dev Server 需要的路由改写映射
+          const defaultHtmlUrl = `/${outputDefaultEntry ? "index.html" : `${outputPath}/index.html`}`;
+          const actualServePath = `/${generatedDirName}${defaultHtmlUrl}`;
+          urlMap[defaultHtmlUrl] = actualServePath;
+          if (outputDefaultEntry) {
+            urlMap["/"] = actualServePath;
+          } else {
+            urlMap[`/${outputPath}`] = actualServePath;
+            urlMap[`/${outputPath}/`] = actualServePath;
+          }
         }
       }
 
       logger.success(
         `✨ 共处理 ${mpaConfig.length} 个配置，生成 ${Object.keys(entries).length} 个页面入口`,
       );
+
+      if (printList.length > 0) {
+        let maxPage = 4;
+        let maxEntry = 5;
+        printList.forEach((p) => {
+          maxPage = Math.max(maxPage, p.Page.length);
+          maxEntry = Math.max(maxEntry, p.Entry.length);
+        });
+
+        console.log(
+          `\n\x1b[90m${"Page".padEnd(maxPage)}   ${"Entry".padEnd(maxEntry)}   Component\x1b[0m`,
+        );
+        printList.forEach((p) => {
+          const page = `\x1b[36m${p.Page.padEnd(maxPage)}\x1b[0m`;
+          const entry = `\x1b[32m${p.Entry.padEnd(maxEntry)}\x1b[0m`;
+          const comp = `\x1b[33m${p.Component}\x1b[0m`;
+          console.log(`${page}   ${entry}   ${comp}`);
+        });
+        console.log();
+      }
 
       // 合并已有的 rollupOptions.input
       const userInputs = viteConfig.build?.rollupOptions?.input;
@@ -273,6 +328,31 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
           },
         },
       };
+    },
+
+    configureServer(server) {
+      // 在开发环境拦截用户的 URL 并将他们定向到生成的真正的 HTML
+      server.middlewares.use((req, res, next) => {
+        if (req.url) {
+          const pathname = req.url.split("?")[0];
+          if (urlMap[pathname]) {
+            req.url = req.url.replace(pathname, urlMap[pathname]);
+          }
+        }
+        next();
+      });
+    },
+
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url) {
+          const pathname = req.url.split("?")[0];
+          if (urlMap[pathname]) {
+            req.url = req.url.replace(pathname, urlMap[pathname]);
+          }
+        }
+        next();
+      });
     },
   };
 }
