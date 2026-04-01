@@ -180,6 +180,24 @@ describe("vite-plugin-mpa", () => {
       expect(existsSync(resolve(testGeneratedDir, "tool/admin/index.html"))).toBe(true);
     });
 
+    it("appEntry 为数组且配置了 output: 'index' 时，仅默认 index 入口被重定向", async () => {
+      const { result } = await runPluginConfig([
+        { page: "tool", title: "Tool", appEntry: ["index", "admin"], output: "index" },
+      ]);
+
+      const input = result?.build?.rollupOptions?.input;
+
+      // index 入口的 HTML 应该在根目录
+      expect(input["tool"]).toBeDefined();
+      expect(input["tool"].replace(/\\/g, "/")).toContain(".generated-test/index.html");
+
+      // admin 子入口的 HTML 应该照样走其嵌套目录
+      expect(input["tool/admin"]).toBeDefined();
+      expect(input["tool/admin"].replace(/\\/g, "/")).toContain(
+        ".generated-test/tool/admin/index.html",
+      );
+    });
+
     it("appEntry 为单个字符串时应与默认行为一致", async () => {
       const { result: r1 } = await runPluginConfig([{ page: "foo", title: "Foo" }]);
       cleanDirs();

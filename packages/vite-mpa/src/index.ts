@@ -211,7 +211,7 @@ async function generateFiles(
     for (const entry of entryList) {
       // 确定生成目录名和 HTML 输出路径名
       const isDefaultEntry = entry === "index";
-      const outputDefaultEntry = config.output === "index";
+      const outputDefaultEntry = config.output === "index" && isDefaultEntry;
 
       // 仅当默认入口时 output 才有意义（子入口不支持 output 重定向）
       // 该支持是为了 home 或其他主页 页面可以直接指定为 /index.html
