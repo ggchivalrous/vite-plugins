@@ -139,4 +139,11 @@ export interface ViteMpaOptions {
    * @default false
    */
   verbose?: boolean;
+
+  /**
+   * 当监听到 MPA 配置文件被删除（unlink）时，是否强行重启 Vite Dev Server。
+   * 默认情况下，增加或修改配置只需热生成和页面刷新即可，如果期望彻底卸载页面入口可开启此项。
+   * @default false
+   */
+  restartOnUnlink?: boolean;
 }
