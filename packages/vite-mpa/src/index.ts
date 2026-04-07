@@ -159,6 +159,25 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
   };
 }
 
+/**
+ * 根据页面配置和入口名解析出相关的路径和状态
+ */
+function resolvePagePaths(config: Config, entry: string) {
+  const isDefaultEntry = entry === "index";
+  const outputDefaultEntry = config.output === "index" && isDefaultEntry;
+
+  // 仅当默认入口时 output 才有意义（子入口不支持 output 重定向）
+  const outputPath = isDefaultEntry ? config.page : `${config.page}/${entry}`;
+  const htmlRelativePath = outputDefaultEntry ? "index.html" : `${outputPath}/index.html`;
+
+  return {
+    outputPath,
+    htmlRelativePath,
+    isDefaultEntry,
+    outputDefaultEntry,
+  };
+}
+
 async function generateFiles(
   viteConfig: any,
   configEnv: ConfigEnv,
@@ -221,13 +240,9 @@ async function generateFiles(
       : globalMainTempStr;
 
     for (const entry of entryList) {
-      // 确定生成目录名和 HTML 输出路径名
-      const isDefaultEntry = entry === "index";
-      const outputDefaultEntry = config.output === "index" && isDefaultEntry;
+      const { outputPath, htmlRelativePath, isDefaultEntry, outputDefaultEntry } =
+        resolvePagePaths(config, entry);
 
-      // 仅当默认入口时 output 才有意义（子入口不支持 output 重定向）
-      // 该支持是为了 home 或其他主页 页面可以直接指定为 /index.html
-      const outputPath = isDefaultEntry ? config.page : `${config.page}/${entry}`;
       const pageFile = isDefaultEntry ? `${config.page}/index` : `${config.page}/${entry}`;
       const generatedEntryDir = resolve(generatedDir, outputPath);
 
@@ -269,10 +284,7 @@ async function generateFiles(
 
       // 写入 HTML
       const htmlContent = generateHtml(htmlTempStr, outputPath, config, generatedDirName);
-      const htmlPath = join(
-        generatedDir,
-        outputDefaultEntry ? "index.html" : `${outputPath}/index.html`,
-      );
+      const htmlPath = join(generatedDir, htmlRelativePath);
       const htmlDirPath = dirname(htmlPath);
       if (!existsSync(htmlDirPath)) {
         mkdirSync(htmlDirPath, { recursive: true });
@@ -288,7 +300,7 @@ async function generateFiles(
       });
 
       // 记录 Dev Server 需要的路由改写映射
-      const defaultHtmlUrl = `/${outputDefaultEntry ? "index.html" : `${outputPath}/index.html`}`;
+      const defaultHtmlUrl = `/${htmlRelativePath}`;
       const actualServePath = `/${generatedDirName}${defaultHtmlUrl}`;
       urlMap[defaultHtmlUrl] = actualServePath;
       if (outputDefaultEntry) {
@@ -342,4 +354,62 @@ async function generateFiles(
  */
 export function defineMpaConfig(config: Config | Config[]) {
   return { __viteMpaPluginConfig: Array.isArray(config) ? config : [config] };
+}
+
+/**
+ * 解析并获取 MPA 插件生成的所有页面入口列表。
+ * 可用于 SSG 预渲染、自动化测试或其他需要遍历页面入口的场景。
+ *
+ * @example
+ * // 配合 vite-plugin-ssg 使用
+ * // vite.config.ts
+ * import { mpaPlugin, resolveMpaEntries } from '@ggcv/vite-plugin-mpa'
+ * import { ssgPlugin } from '@ggcv/vite-plugin-ssg'
+ *
+ * const options = { ... }
+ *
+ * export default defineConfig(async (env) => {
+ *   return {
+ *     plugins: [
+ *       mpaPlugin(options),
+ *       ssgPlugin({
+ *         entries: await resolveMpaEntries(options, env),
+ *       }),
+ *     ],
+ *   }
+ * })
+ */
+export async function resolveMpaEntries(
+  options: ViteMpaOptions = {},
+  configEnv: ConfigEnv = { command: "build", mode: "production" },
+  rootDir: string = process.cwd(),
+) {
+  const logger = createLogger(false);
+  const mpaConfig = await readConfig(options, configEnv, rootDir, logger);
+
+  const resolvePath = (opt: string | undefined, fallback: string) =>
+    opt ? (isAbsolute(opt) ? opt : resolve(rootDir, opt)) : resolve(rootDir, fallback);
+
+  const generatedDir = resolvePath(options.generatedDir, ".generated");
+
+  const mpaEntries: Array<{ entry: string; html: string }> = [];
+
+  for (const config of mpaConfig) {
+    const appEntry = config.appEntry ?? "index";
+    const entryList = Array.isArray(appEntry) ? appEntry : [appEntry];
+
+    for (const entry of entryList) {
+      const { outputPath, htmlRelativePath } = resolvePagePaths(config, entry);
+
+      const htmlPath = htmlRelativePath;
+      const entryPath = join(generatedDir, outputPath, "main.ts");
+
+      mpaEntries.push({
+        entry: normalizePath(entryPath),
+        html: normalizePath(htmlPath),
+      });
+    }
+  }
+
+  return mpaEntries;
 }

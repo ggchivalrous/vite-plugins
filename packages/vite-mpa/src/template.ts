@@ -25,9 +25,15 @@ export const defaultAppTemp = `
 `;
 
 export const defaultMainTemp = `
-import { createApp } from 'vue'
+import { createApp as createVueApp } from 'vue'
 import App from './app.vue'
 
-const app = createApp(App)
-app.mount('#app')
+export function createApp() {
+  const app = createVueApp(App)
+  return { app }
+}
+
+if (!import.meta.env.SSR) {
+  createApp().app.mount('#app')
+}
 `;
