@@ -68,6 +68,37 @@ export interface Config {
    * ]
    */
   metas?: MetaTag[];
+
+  /**
+   * 当前页面使用的 HTML 模板文件路径（绝对路径或相对于 Vite root 的相对路径）。
+   * 优先级高于插件选项中的全局 `template`。
+   * 模板中可使用以下占位符：
+   * - `%TITLE%`：页面标题
+   * - `%META%`：注入的 meta 标签块
+   * - `%FAVICON%`：favicon 路径
+   * - `%ENTRY%`：入口脚本相对路径
+   *
+   * 若不指定，将沿用全局 `template` 或内置默认模板。
+   */
+  template?: string;
+
+  /**
+   * 当前页面使用的 `app.vue` 模板文件路径（绝对路径或相对于 Vite root 的相对路径）。
+   * 优先级高于插件选项中的全局 `appTemplate`。
+   * 模板中可使用以下占位符：
+   * - `// @Page`：会被替换为页面组件导入语句
+   *
+   * 若不指定，将沿用全局 `appTemplate` 或内置默认模板。
+   */
+  appTemplate?: string;
+
+  /**
+   * 当前页面使用的 `main.ts` 模板文件路径（绝对路径或相对于 Vite root 的相对路径）。
+   * 优先级高于插件选项中的全局 `mainTemplate`。
+   *
+   * 若不指定，将沿用全局 `mainTemplate` 或内置默认模板。
+   */
+  mainTemplate?: string;
 }
 
 export interface ViteMpaOptions {

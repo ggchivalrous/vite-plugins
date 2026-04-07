@@ -194,9 +194,10 @@ async function generateFiles(
     logger.success(`🔨 开始生成工具页面 HTML 和入口文件...`);
   }
 
-  const appTempStr = getTemplateContent(options.appTemplate, defaultAppTemp, rootDir, logger);
-  const mainTempStr = getTemplateContent(options.mainTemplate, defaultMainTemp, rootDir, logger);
-  const htmlTempStr = getTemplateContent(options.template, defaultHtmlTemp, rootDir, logger);
+  const globalAppTempStr = getTemplateContent(options.appTemplate, defaultAppTemp, rootDir, logger);
+  const globalMainTempStr = getTemplateContent(options.mainTemplate, defaultMainTemp, rootDir, logger);
+  // 全局 HTML 模板（作为各页面的默认回退）
+  const globalHtmlTempStr = getTemplateContent(options.template, defaultHtmlTemp, rootDir, logger);
 
   const entries: Record<string, string> = {};
   const printList: Array<{ Page: string; Entry: string; Component: string }> = [];
@@ -207,6 +208,17 @@ async function generateFiles(
   for (const config of mpaConfig) {
     const appEntry = config.appEntry ?? "index";
     const entryList = Array.isArray(appEntry) ? appEntry : [appEntry];
+
+    // 解析当前页面使用的各模板，优先级：页面级 > 全局 > 内置默认
+    const htmlTempStr = config.template
+      ? getTemplateContent(config.template, globalHtmlTempStr, rootDir, logger)
+      : globalHtmlTempStr;
+    const appTempStr = config.appTemplate
+      ? getTemplateContent(config.appTemplate, globalAppTempStr, rootDir, logger)
+      : globalAppTempStr;
+    const mainTempStr = config.mainTemplate
+      ? getTemplateContent(config.mainTemplate, globalMainTempStr, rootDir, logger)
+      : globalMainTempStr;
 
     for (const entry of entryList) {
       // 确定生成目录名和 HTML 输出路径名
