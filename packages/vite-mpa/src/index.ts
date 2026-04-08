@@ -400,10 +400,8 @@ async function generateFiles(
       writeFileSync(htmlPath, htmlContent, "utf-8");
       logger.info(`生成 HTML: ${htmlPath}`);
 
-      // 写入 entries，使用逻辑相对路径作为 key，Vite 会根据此结构在 dist 生成文件
-      // 移除 .html 后缀以符合 Vite rollupOptions.input 的名称习惯，或者直接用完整路径
-      const inputKey = htmlRelativePath.replace(/\.html$/, "");
-      entries[inputKey] = htmlPath;
+      // 写入 entries，使用逻辑相对路径作为 key
+      entries[outputPath] = htmlPath;
 
       printList.push({
         Page: config.page,
