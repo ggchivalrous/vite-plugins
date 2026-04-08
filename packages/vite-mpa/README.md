@@ -1,28 +1,31 @@
 # vite-plugin-mpa
 
-一款强大且灵活的 Vite 多页应用（MPA）构建与入口生成插件。它可以根据简单配置，自动为你生成各类页面的 HTML、入口 `main.ts` 及其对应的挂载应用组件 `app.vue`，并将虚拟文件映射给本地服务器，极大地简化了 Vite MPA 的繁琐配置。
+一款强大且灵活的 Vite 多页应用（MPA）构建与入口生成插件。它可以根据配置自动生成各页面的 HTML、入口 `main.ts` 及其挂载组件 `app.vue`。
 
-## 特性
+插件核心解决了 MPA 开发中的痛点：通过虚拟化/自动生成技术，让开发者只需关注业务组件，而无需手动维护繁琐的 HTML 入口文件。
 
-- 🚀 自动生成 HTML 与多页入口，内置美观默认模板。
-- 🔍 强大的目录扫描规则，支持按文件夹分散配置。
-- ⚙️ 支持自定义全局 HTML、入口与应用模板，提供丰富的占位符宏。
-- 🛠️ 支持页面独立的 Title, Meta 标签与 Favicon 定制。
-- ⚡ 完美融入 Vite dev-server 路由代理与生产环境 Rollup 产物归类。
+## ✨ 特性
 
-## 安装
+- 🚀 **自动化入口生成**：自动生成 HTML、入口脚本与 Vue 挂载外壳，无需手动维护。
+- 📦 **构建产物零污染**：通过 `.generated` 隔离带进行构建，最终物理产物平铺在 `dist` 根部，干净整洁。
+- 🔍 **灵活的扫描规则**：支持全量配置、独立配置文件或按文件夹递归扫描。
+- ⚙️ **精细化模板定制**：提供全局及**页面级**的 HTML/App/Main 模板覆盖，支持丰富的宏替换。
+- 🛠️ **完善的 SEO 支持**：支持页面独立的 Title、Meta 标签与 Favicon 定制。
+- ⚡ **深度集成**：完美支持 Vite Dev Server 路由改写、Preview Server 以及 **SSG (静态站点生成)**。
 
-无需手动安装第三方依赖，直接装在你的项目中：
+## 📦 安装
 
 ```bash
 npm i @ggcv/vite-plugin-mpa -D
-# 或是 pnpm
+# 或
 pnpm i @ggcv/vite-plugin-mpa -D
 ```
 
-## 使用方法
+## 🚀 使用方法
 
-在你的 `vite.config.ts` 中引入插件并配置：
+### 基础配置
+
+在 `vite.config.ts` 中引入：
 
 ```typescript
 import { defineConfig } from "vite";
@@ -31,163 +34,139 @@ import { mpaPlugin } from "@ggcv/vite-plugin-mpa";
 export default defineConfig({
   plugins: [
     mpaPlugin({
-      // 你可以在这里直接传入配置数组
       config: [
         { page: "home", title: "首页", output: "index" },
-        { page: "admin", title: "后台系统" },
+        { page: "about", title: "关于我们" },
       ],
     }),
   ],
 });
 ```
 
-有了以上配置后，访问 `http://localhost:5173/` （根路径）将自动加载 `src/pages/home/index.vue`。
-访问 `http://localhost:5173/admin` 会自动加载 `src/pages/admin/index.vue`。
+- 访问 `/`：加载 `src/pages/home/index.vue`
+- 访问 `/about` : 加载 `src/pages/about/index.vue`
 
 ---
 
-## 动态参数宏 (Macros)
+## 🏗️ 构建逻辑说明
 
-插件允许你提供自己的模板文件（通过 `options.template`、`options.appTemplate` 配置）。在模板解析过程中，系统会替换特定的参数宏。
+与传统的 MPA 插件不同，本插件采用“**隔离构建，最终平铺**”的策略：
 
-### 1. HTML 模板支持的宏 (`options.template`)
+1. **构建中**：所有生成的临时 HTML 存放在 `.generated/` 目录中。
+2. **路径修复**：插件会自动解析注入的 JS/CSS 资源路径，确保它们与最终平铺后的位置匹配。
+3. **构建后**：将产物从 `.generated/` 物理移动到 `dist/` 根目录。
 
-如果你在根目录下编写了自己的 `.html` 模板，可在模板中使用以下占位符：
-
-| 宏占位符          | 说明                                                                             |
-| :---------------- | :------------------------------------------------------------------------------- |
-| `%TITLE%`         | 会被替换为该页面配置的 `title` 内容。                                            |
-| `%VITE_APP_NAME%` | `%TITLE%` 的别名，用于向后兼容旧项目的模板书写习惯。                             |
-| `%META%`          | 会被替换为页面配置中 `metas` 数组解析出来的标准化 `<meta>` 标签块。              |
-| `%FAVICON%`       | 会被替换为该页面的 favicon 路径（默认自动推导，或可由配置的 `favicon` 值覆盖）。 |
-| `%ENTRY%`         | **必填**，会被替换为对应页面实际生成的 `main.ts` 文件的相对路径地址。            |
-
-**HTML 模板示例：**
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="%FAVICON%" />
-    %META%
-    <title>%TITLE%</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <!-- 这里必须要有，否则 Vite 没法加载入口 -->
-    <script type="module" src="%ENTRY%"></script>
-  </body>
-</html>
-```
-
-### 2. Vue 应用入口层支持的宏 (`options.appTemplate`)
-
-在覆盖应用挂载的模板时（生成最终的 `app.vue` 外壳）：
-
-| 宏占位符   | 说明                                                                                     |
-| :--------- | :--------------------------------------------------------------------------------------- |
-| `// @Page` | 会被准确替换为经过解析的（如绝对路径的）视图层组件 `import Page from '...'` 的引入语句。 |
+这意味着你的 `dist` 目录结构将非常直观，不再被工具链生成的临时目录所干扰。
 
 ---
 
-## 配置与扫描规则
+## 🌈 SSG (静态站点生成) 支持
 
-本插件在读取 MPA 页面配置时非常灵活，支持多种配置组合或分散管理方式。它的读取优先级规则按照以下流转：
-
-### 1. 直接传递配置数组 (Direct Config Array)
-
-如果你希望所有的多页入口能集中管理，这可以直接传给 `options.config` 数组：
+本插件与 `vite-plugin-ssg` 深度兼容。通过导出的 `resolveMpaEntries` 工具函数，你可以轻松实现全自动的 MPA 预渲染。
 
 ```typescript
-mpaPlugin({
-  config: [
-    { page: "page1", title: "页面1" },
-    { page: "page2", title: "页面2", appEntry: ["index", "detail"] },
-  ],
+import { defineConfig } from "vite";
+import { mpaPlugin, resolveMpaEntries } from "@ggcv/vite-plugin-mpa";
+import { ssgPlugin } from "@ggcv/vite-plugin-ssg";
+
+export default defineConfig(async (env) => {
+  const mpaOptions = {
+    config: [
+      /* ... */
+    ],
+  };
+
+  return {
+    plugins: [
+      mpaPlugin(mpaOptions),
+      ssgPlugin({
+        // 自动解析 MPA 生成的所有入口，供 SSG 插件抓取并渲染
+        entries: await resolveMpaEntries(mpaOptions, env),
+      }),
+    ],
+  };
 });
 ```
 
-### 2. 传递指定的配置文件路径 (Config File Path)
+---
 
-如果你希望把配置与 `vite.config.ts` 分开，你可以用字符串告诉插件去哪里加载配置：
+## 📝 模板参数宏 (Macros)
 
-```typescript
-mpaPlugin({
-  config: "./config/mpa.config.ts",
-});
-```
+可以在自定义模板中使用以下占位符，插件会在生成时自动填充：
 
-该文件必须 `export default` 一个 `Config` 数组或单个对象。推荐使用插件自带的 `defineMpaConfig` 包裹，它自带类型推导。
+### HTML 模板宏
 
-### 3. 指定目录树的递归扫描 (Scan Directory)
+| 宏占位符          | 说明                                             |
+| :---------------- | :----------------------------------------------- |
+| `%TITLE%`         | 页面标题。                                       |
+| `%META%`          | 自动生成的 `<meta>` 标签块。                     |
+| `%FAVICON%`       | 页面的 favicon 引用路径。                        |
+| `%ENTRY%`         | **必填**。会被替换为绝对路径指向生成的入口脚本。 |
+| `%VITE_APP_NAME%` | `%TITLE%` 的别名。                               |
 
-（**大型 MPA 项目推荐的方案**）
-如果你没有传递 `options.config`，而是想让不同的页面各自管理自己的配置：你可以配置 `options.scanDir`。
+### Vue 挂载模板宏
 
-```typescript
-mpaPlugin({
-  scanDir: "src/pages", // 默认从这个目录开始寻找
-});
-```
+| 宏占位符   | 说明                                 |
+| :--------- | :----------------------------------- |
+| `// @Page` | 会被替换为业务组件的 `import` 语句。 |
 
-**扫描规则：**
+---
 
-1. 插件会**深度递归遍历**你指定的 `scanDir`。
-2. 在该目录下，只要匹配到目标文件名（可通过 `options.scanFile` 参数指定，也可以是数组），就会解析并收集这些文件的配置。
-3. 如果未手动指定 `options.scanFile`，默认将匹配以下四种文件名：
-   - `mpa.config.ts`
-   - `mpa.config.js`
-   - `mpa.config.mjs`
-   - `mpa.config.cjs`
-4. 将所有扫描到的文件内容执行合并。
+## ⚙️ 配置项详解
 
-_参考目录结构：_
+### 插件选项 (`ViteMpaOptions`)
+
+| 属性           | 类型                 | 默认值         | 说明                           |
+| :------------- | :------------------- | :------------- | :----------------------------- |
+| `config`       | `Config[] \| string` | -              | 页面配置数组或配置文件路径。   |
+| `scanDir`      | `string`             | `'src/pages'`  | 自动扫描配置的起始目录。       |
+| `pagesDir`     | `string`             | `'src/pages'`  | 业务 `.vue` 组件存放的根目录。 |
+| `generatedDir` | `string`             | `'.generated'` | 存放临时生成代码的目录名。     |
+| `template`     | `string`             | -              | 全局 HTML 模板路径。           |
+| `appTemplate`  | `string`             | -              | 全局 `app.vue` 挂载模板路径。  |
+| `verbose`      | `boolean`            | `false`        | 是否开启详细控制台日志。       |
+
+### 页面配置 (`Config`)
+
+| 属性          | 类型                 | 说明                                                   |
+| :------------ | :------------------- | :----------------------------------------------------- |
+| `page`        | `string`             | **必填**。相对于 `pagesDir` 的子目录名，决定路由路径。 |
+| `title`       | `string`             | **必填**。页面标题。                                   |
+| `output`      | `string`             | 选填。指定输出文件名（如 `'index'` 会输出到根目录）。  |
+| `appEntry`    | `string \| string[]` | 选填。指定目录下的入口名，支持单目录多页。             |
+| `metas`       | `MetaTag[]`          | 选填。定制该页面的 Meta 标签。                         |
+| `template`    | `string`             | 选填。**页面级** HTML 模板，优先级高于全局设置。       |
+| `appTemplate` | `string`             | 选填。**页面级** App 模板，优先级高于全局设置。        |
+| `component`   | `string`             | 选填。强行指定业务组件路径（跳过自动匹配）。           |
+
+---
+
+## 🛠️ 推荐目录结构
 
 ```text
-src/pages/
-├── home/
-│   ├── index.vue
-│   └── mpa.config.ts   // 配置导出：{ page: 'home', title: '首页' }
-└── auth/
-    ├── index.vue
-    └── mpa.config.ts   // 配置导出：{ page: 'auth', title: '鉴权页' }
+.
+├── src/
+│   └── pages/
+│       ├── home/
+│       │   ├── index.vue
+│       │   └── mpa.config.ts  // 该页面的独立配置
+│       └── about/
+│           └── index.vue      // 也可以由全局配置统一管理
+├── mpa.config.ts              // 全量配置文件（可选）
+└── vite.config.ts
 ```
 
-通过开启 `scanDir` 服务，各目录的独立页面配置互不打扰而且一目了然。
-
-### 4. 根目录兜底自动查找 (Fallback)
-
-如果以上三种（`config 直接传递`、`config 字符串路径`、`scanDir`）你一样都没有配置，插件会默默在你提供的 `baseDir`（如果不传就是所在项目的根目录）去尝试寻找默认配置入口文件（也就是上面列举出的四个 `mpa.config.[ext]`）。
-
----
-
-## 页面配置详解 (`Config`)
-
-每一个页面的单独入口配置具备极高的定制上限：
-
-| 属性        | 类型                 | 说明                                                                                                                                                                                                                                                                                                                                                       |
-| :---------- | :------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `page`      | `string`             | **必填**。相对于 `pagesDir` 的子目录名，同时也是 url path 基础输出。 （如填 `'auth'` => 查找 `src/pages/auth/index.vue` ）                                                                                                                                                                                                                                 |
-| `title`     | `string`             | **必填**。此页面 `<title>` 和 `%TITLE%` 宏注入的文案。                                                                                                                                                                                                                                                                                                     |
-| `component` | `string`             | 选填。强行指定页面所使用的 .vue 组件库路径，如果存在就完全无视 `pagesDir` 与 `page` 的路径拼接策略。                                                                                                                                                                                                                                                       |
-| `sourceDir` | `string`             | 选填。给这个页面配置强制重定向的一个独立根工作目录。                                                                                                                                                                                                                                                                                                       |
-| `appEntry`  | `string \| string[]` | 选填。默认为 `'index'`，如果你希望这一个 `page` 目录下生成多个页面（如 `mobile.html` 和 `desktop.html`），可以配置 `['mobile', 'desktop']` 且提供对应的 vue 源码对应文件名即可。                                                                                                                                                                           |
-| `output`    | `string`             | 选填。它通常用于将如 `page: 'home'` 这样的主页名字覆盖指定为 `'index'`，也就是让打包后的该页 HTML 输出在最层根目录（`dist/index.html`），配合路由 `/` 即可完成主页跳转。<br/>_(注：如果当前页面有多入口 `appEntry`，`output: 'index'` 专属的路由重定向覆盖只会对 `'index'` 默认入口生效，其他子页面比如 `'about'` 不受其干扰，依然输出在自己的归属目录下)_ |
-| `favicon`   | `string`             | 选填。此页面的 favicon 图标绝对路径。                                                                                                                                                                                                                                                                                                                      |
-| `metas`     | `MetaTag[]`          | 选填。专门用于为页面提供定制化的 `<meta>` 参数数组。                                                                                                                                                                                                                                                                                                       |
-
-### `defineMpaConfig` 的使用
-
-插件内导出该函数可提供极佳的 IDE 编写体验：
+使用 `defineMpaConfig` 获得全量类型提示：
 
 ```typescript
-// src/pages/user/mpa.config.ts
 import { defineMpaConfig } from "@ggcv/vite-plugin-mpa";
 
 export default defineMpaConfig({
-  page: "user",
-  title: "个人中心",
-  metas: [{ name: "description", content: "个人账号配置模块" }],
+  page: "home",
+  title: "Vite MPA App",
 });
 ```
+
+## 📄 License
+
+[MIT](./LICENSE) License © 2026-PRESENT [ggchivalrous](https://github.com/ggchivalrous).

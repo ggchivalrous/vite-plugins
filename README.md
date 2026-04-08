@@ -15,7 +15,7 @@
 | 插件名称                                                     | 简介                                                                                                | 版本                                                                                                                          | 目录                 |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | **[`@ggcv/vite-plugin-ssg`](./packages/vite-ssg/README.md)** | 强大灵活的 Vite 静态站点生成 (SSG) 插件。支持 Vue/React 预渲染、自定义渲染函数与内置 SSR 模拟环境。 | [![npm version](https://badge.fury.io/js/%40ggcv%2Fvite-plugin-ssg.svg)](https://www.npmjs.com/package/@ggcv/vite-plugin-ssg) | `/packages/vite-ssg` |
-| **[`@ggcv/vite-plugin-mpa`](./packages/vite-mpa/README.md)** | _(🚧 开发中)_ 多页应用 (MPA) 路由与页面生成插件，轻松管理复杂多页 HTML 入口。                       | -                                                                                                                             | `/packages/vite-mpa` |
+| **[`@ggcv/vite-plugin-mpa`](./packages/vite-mpa/README.md)** | 强大且灵活的 Vite 多页应用 (MPA) 入口生成插件。支持隔离构建、SSG 集成与页面级模板定制。     | [![npm version](https://badge.fury.io/js/%40ggcv%2Fvite-plugin-mpa.svg)](https://www.npmjs.com/package/@ggcv/vite-plugin-mpa) | `/packages/vite-mpa` |
 
 > 📌 **更多详细用法，请点击表格中的插件名称前往各自的子文档。**
 
