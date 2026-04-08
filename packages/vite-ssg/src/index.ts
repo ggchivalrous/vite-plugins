@@ -409,6 +409,11 @@ export function ssgPlugin(options: SSGPluginOptions): Plugin {
           // 因为用户可能设置了 root: 'html' 等子目录，
           // 而 auto-import 等插件的相对路径基于 configFile 所在目录解析
           root: resolvedConfig.configFile ? path.dirname(resolvedConfig.configFile) : projectRoot,
+          // 继承开发/构建模式，确保插件逻辑一致性
+          mode: resolvedConfig.mode,
+          // 继承环境配置，确保 SSR 服务加载相同的 .env 文件
+          envDir: resolvedConfig.envDir,
+          envPrefix: resolvedConfig.envPrefix,
           server: { middlewareMode: true },
           appType: "custom",
           // 合并用户的 ssrViteConfig（但 resolve.alias 需特殊合并）
