@@ -1,6 +1,6 @@
 {
   "name": "@ggcv/vite-plugin-ssg",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Vite plugin for Static Site Generation (SSG) — prerender Vue/React apps to static HTML at build time",
   "keywords": [
     "prerender",
