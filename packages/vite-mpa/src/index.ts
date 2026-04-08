@@ -1,15 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type ConfigEnv, normalizePath, type Plugin } from "vite";
 import { defaultAppTemp, defaultHtmlTemp, defaultMainTemp } from "./template";
 import type { Config, MetaTag, ViteMpaOptions } from "./type";
-import {
-  calcRelativePrefix,
-  createLogger,
-  defaultConfigNames,
-  genMetas,
-  readConfig,
-} from "./utils";
+import { createLogger, defaultConfigNames, genMetas, readConfig } from "./utils";
 
 export type { Config, MetaTag, ViteMpaOptions };
 
@@ -23,7 +25,6 @@ function generateHtml(
   generatedDirName: string,
 ): string {
   const metaStr = config.metas && config.metas.length > 0 ? genMetas(config.metas) : "";
-  const prefix = calcRelativePrefix(outputPath);
   const favicon = config.favicon ?? `/${outputPath}.svg`;
 
   return (
@@ -33,7 +34,8 @@ function generateHtml(
       // 向后兼容旧模板中使用 %VITE_APP_NAME% 的情况
       .replace("%VITE_APP_NAME%", config.title)
       .replace("%FAVICON%", favicon)
-      .replace("%ENTRY%", `${prefix}${generatedDirName}/${outputPath}/main.ts`)
+      // 使用绝对路径，避免开发模式 URL 重写后浏览器计算相对路径异常
+      .replace("%ENTRY%", `/${generatedDirName}/${outputPath}/main.ts`)
   );
 }
 
@@ -156,6 +158,101 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
         next();
       });
     },
+
+    transformIndexHtml: {
+      // order: 'post' 确保在 Vite 注入 script/link 资源引用之后运行
+      // 此时 HTML 中已有带 hash 的资源路径，且不含用户导航链接（用户链接是客户端路由）
+      order: "post",
+      handler(html, ctx) {
+        // 仅在构建时处理，开发环境由 urlMap 中间件负责路由
+        if (resolvedConfigEnv?.command !== "build") return html;
+
+        const gDir = options.generatedDir || ".generated";
+        const gDirName = basename(gDir);
+        const normalizedFilename = normalizePath(ctx.filename || "");
+
+        // 只处理位于 .generated 目录下的 HTML
+        if (!normalizedFilename.includes(`/${gDirName}/`)) return html;
+
+        // 获取 Vite 配置的 assetsDir（默认为 "assets"）
+        const assetsDir = resolvedViteConfig?.build?.assetsDir ?? "assets";
+        // 对 assetsDir 进行正则转义（以防含特殊字符）
+        const escapedAssetsDir = assetsDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        // 匹配 href/src 属性中 ../的序列 + assetsDir，精确针对 Vite 注入的资源路径
+        // 例如：href="../../assets/xxx" → href="../assets/xxx"（减少一层 ../）
+        // 这样避免了误伤用户写的 <a href="../about"> 等导航链接
+        const re = new RegExp(`(href|src)="((?:\\.\\.\\/)+)(${escapedAssetsDir}\\/)`, "g");
+
+        return html.replace(re, (_, attr, levels, assetPath) => {
+          // 减少恰好一层 ../（因为文件向上移动了一层）
+          const newLevels = levels.slice("../".length);
+          return `${attr}="${newLevels}${assetPath}`;
+        });
+      },
+    },
+
+    generateBundle(_, bundle) {
+      // 仅重命名 bundle 中以 .generated/ 开头的文件（如能命中）
+      // HTML 路径已由 transformIndexHtml 在内存阶段修复，此处无需再处理 HTML 内容
+      const gDir = options.generatedDir || ".generated";
+      const gDirName = basename(gDir);
+      const prefix = `${gDirName}/`;
+
+      for (const fileName of Object.keys(bundle)) {
+        if (fileName.startsWith(prefix)) {
+          const asset = bundle[fileName];
+          const newFileName = fileName.slice(prefix.length);
+
+          if (bundle[newFileName]) continue;
+
+          asset.fileName = newFileName;
+          bundle[newFileName] = asset;
+          delete bundle[fileName];
+        }
+      }
+    },
+
+    closeBundle() {
+      // 兜底：某些情况下 Vite 直接写入磁盘而绕过 bundle，
+      // 此时物理移动文件即可 —— 路径已由 transformIndexHtml 在写入前修正
+      if (resolvedConfigEnv?.command !== "build") return;
+
+      const rootDir = resolvedViteConfig?.root || process.cwd();
+      const outDir = resolvedViteConfig?.build?.outDir || "dist";
+      const fullOutDir = isAbsolute(outDir) ? outDir : resolve(rootDir, outDir);
+
+      const gDir = options.generatedDir || ".generated";
+      const gDirName = basename(gDir);
+      const gOutPath = resolve(fullOutDir, gDirName);
+
+      if (!existsSync(gOutPath)) return;
+
+      const moveDir = (src: string, dest: string) => {
+        if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
+        const entries = readdirSync(src, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const srcPath = join(src, entry.name);
+          const destPath = join(dest, entry.name);
+
+          if (entry.isDirectory()) {
+            moveDir(srcPath, destPath);
+          } else {
+            // 目标已存在（已通过 generateBundle 处理）则跳过
+            if (existsSync(destPath)) continue;
+            renameSync(srcPath, destPath);
+          }
+        }
+      };
+
+      try {
+        moveDir(gOutPath, fullOutDir);
+        rmSync(gOutPath, { recursive: true, force: true });
+      } catch {
+        // silent
+      }
+    },
   };
 }
 
@@ -214,7 +311,12 @@ async function generateFiles(
   }
 
   const globalAppTempStr = getTemplateContent(options.appTemplate, defaultAppTemp, rootDir, logger);
-  const globalMainTempStr = getTemplateContent(options.mainTemplate, defaultMainTemp, rootDir, logger);
+  const globalMainTempStr = getTemplateContent(
+    options.mainTemplate,
+    defaultMainTemp,
+    rootDir,
+    logger,
+  );
   // 全局 HTML 模板（作为各页面的默认回退）
   const globalHtmlTempStr = getTemplateContent(options.template, defaultHtmlTemp, rootDir, logger);
 
@@ -240,8 +342,10 @@ async function generateFiles(
       : globalMainTempStr;
 
     for (const entry of entryList) {
-      const { outputPath, htmlRelativePath, isDefaultEntry, outputDefaultEntry } =
-        resolvePagePaths(config, entry);
+      const { outputPath, htmlRelativePath, isDefaultEntry, outputDefaultEntry } = resolvePagePaths(
+        config,
+        entry,
+      );
 
       const pageFile = isDefaultEntry ? `${config.page}/index` : `${config.page}/${entry}`;
       const generatedEntryDir = resolve(generatedDir, outputPath);
@@ -284,7 +388,11 @@ async function generateFiles(
 
       // 写入 HTML
       const htmlContent = generateHtml(htmlTempStr, outputPath, config, generatedDirName);
-      const htmlPath = join(generatedDir, htmlRelativePath);
+      // htmlRelativePath 是逻辑相对路径（如 index.html），物理上写入 generatedDir
+      const htmlPath = resolve(
+        generatedDir,
+        outputDefaultEntry ? "index.html" : `${outputPath}/index.html`,
+      );
       const htmlDirPath = dirname(htmlPath);
       if (!existsSync(htmlDirPath)) {
         mkdirSync(htmlDirPath, { recursive: true });
@@ -292,7 +400,11 @@ async function generateFiles(
       writeFileSync(htmlPath, htmlContent, "utf-8");
       logger.info(`生成 HTML: ${htmlPath}`);
 
-      entries[outputPath] = htmlPath;
+      // 写入 entries，使用逻辑相对路径作为 key，Vite 会根据此结构在 dist 生成文件
+      // 移除 .html 后缀以符合 Vite rollupOptions.input 的名称习惯，或者直接用完整路径
+      const inputKey = htmlRelativePath.replace(/\.html$/, "");
+      entries[inputKey] = htmlPath;
+
       printList.push({
         Page: config.page,
         Entry: `/${outputDefaultEntry ? "" : `${outputPath}`}`,
@@ -300,9 +412,11 @@ async function generateFiles(
       });
 
       // 记录 Dev Server 需要的路由改写映射
-      const defaultHtmlUrl = `/${htmlRelativePath}`;
-      const actualServePath = `/${generatedDirName}${defaultHtmlUrl}`;
-      urlMap[defaultHtmlUrl] = actualServePath;
+      const actualServePath = `/${generatedDirName}/${outputDefaultEntry ? "index.html" : `${outputPath}/index.html`}`;
+      // 当请求为不带 generatedDir 的原生路径时，重写到实际的 serve 路径
+      const originHtmlUrl = `/${htmlRelativePath}`;
+      urlMap[originHtmlUrl] = actualServePath;
+
       if (outputDefaultEntry) {
         urlMap["/"] = actualServePath;
       } else {
@@ -391,6 +505,7 @@ export async function resolveMpaEntries(
     opt ? (isAbsolute(opt) ? opt : resolve(rootDir, opt)) : resolve(rootDir, fallback);
 
   const generatedDir = resolvePath(options.generatedDir, ".generated");
+  const generatedDirName = basename(generatedDir);
 
   const mpaEntries: Array<{ entry: string; html: string }> = [];
 
@@ -401,12 +516,16 @@ export async function resolveMpaEntries(
     for (const entry of entryList) {
       const { outputPath, htmlRelativePath } = resolvePagePaths(config, entry);
 
-      const htmlPath = htmlRelativePath;
       const entryPath = join(generatedDir, outputPath, "main.ts");
+
+      // html 使用带 generatedDirName 前缀的路径，反映构建产物的真实位置
+      // SSG 的 closeBundle(order: pre) 会在 MPA closeBundle 移动文件前读取这个路径
+      // MPA closeBundle 随后才将文件从 .generated/ 移动到 dist 根目录
+      const htmlWithPrefix = normalizePath(join(generatedDirName, htmlRelativePath));
 
       mpaEntries.push({
         entry: normalizePath(entryPath),
-        html: normalizePath(htmlPath),
+        html: htmlWithPrefix,
       });
     }
   }
