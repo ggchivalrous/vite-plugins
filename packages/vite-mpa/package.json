@@ -1,6 +1,6 @@
 {
   "name": "@ggcv/vite-plugin-mpa",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "description": "Vite 多页应用插件",
   "keywords": [
     "mpa",
