@@ -44,6 +44,7 @@
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
+    "@vue/compiler-sfc": "^3.5.31",
     "bumpp": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

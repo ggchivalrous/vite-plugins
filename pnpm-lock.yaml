@@ -76,6 +76,9 @@ importers:
 
   packages/vite-mpa:
     dependencies:
+      '@vue/compiler-sfc':
+        specifier: ^3.5.31
+        version: 3.5.31
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@latest
         version: '@voidzero-dev/vite-plus-core@0.1.14(@types/node@25.5.0)(jiti@2.6.1)(typescript@6.0.2)(yaml@2.8.3)'

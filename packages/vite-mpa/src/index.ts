@@ -10,6 +10,7 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type ConfigEnv, normalizePath, type Plugin } from "vite";
 import { defaultAppTemp, defaultHtmlTemp, defaultMainTemp } from "./template";
+import { relocateTemplateImports, type TemplateSource } from "./imports";
 import type { Config, MetaTag, ViteMpaOptions } from "./type";
 import { createLogger, defaultConfigNames, genMetas, readConfig } from "./utils";
 
@@ -40,22 +41,22 @@ function generateHtml(
 }
 
 /**
- * 读取自定义模板内容，若文件不存在则回退到默认内容
+ * 读取模板并保留来源路径；文件不存在时继承回退模板的内容与来源。
  */
-function getTemplateContent(
+function readTemplate(
   customPath: string | undefined,
-  defaultContent: string,
+  fallback: TemplateSource,
   rootDir: string,
   logger: ReturnType<typeof createLogger>,
-): string {
+): TemplateSource {
   if (customPath) {
-    const fullPath = isAbsolute(customPath) ? customPath : resolve(rootDir, customPath);
+    const fullPath = resolve(rootDir, customPath);
     if (existsSync(fullPath)) {
-      return readFileSync(fullPath, "utf-8");
+      return { content: readFileSync(fullPath, "utf-8"), filename: fullPath };
     }
-    logger.warn(`未找到自定义模板文件: ${fullPath}，将使用内置默认模板。`);
+    logger.warn(`未找到自定义模板文件: ${fullPath}，将使用回退模板。`);
   }
-  return defaultContent;
+  return fallback;
 }
 
 export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
@@ -301,15 +302,25 @@ async function generateFiles(
     logger.success(`🔨 开始生成工具页面 HTML 和入口文件...`);
   }
 
-  const globalAppTempStr = getTemplateContent(options.appTemplate, defaultAppTemp, rootDir, logger);
-  const globalMainTempStr = getTemplateContent(
+  const globalAppTemplate = readTemplate(
+    options.appTemplate,
+    { content: defaultAppTemp },
+    rootDir,
+    logger,
+  );
+  const globalMainTemplate = readTemplate(
     options.mainTemplate,
-    defaultMainTemp,
+    { content: defaultMainTemp },
     rootDir,
     logger,
   );
   // 全局 HTML 模板（作为各页面的默认回退）
-  const globalHtmlTempStr = getTemplateContent(options.template, defaultHtmlTemp, rootDir, logger);
+  const globalHtmlTemplate = readTemplate(
+    options.template,
+    { content: defaultHtmlTemp },
+    rootDir,
+    logger,
+  );
 
   const entries: Record<string, string> = {};
   const printList: Array<{ Page: string; Entry: string; Component: string }> = [];
@@ -322,15 +333,15 @@ async function generateFiles(
     const entryList = Array.isArray(appEntry) ? appEntry : [appEntry];
 
     // 解析当前页面使用的各模板，优先级：页面级 > 全局 > 内置默认
-    const htmlTempStr = config.template
-      ? getTemplateContent(config.template, globalHtmlTempStr, rootDir, logger)
-      : globalHtmlTempStr;
-    const appTempStr = config.appTemplate
-      ? getTemplateContent(config.appTemplate, globalAppTempStr, rootDir, logger)
-      : globalAppTempStr;
-    const mainTempStr = config.mainTemplate
-      ? getTemplateContent(config.mainTemplate, globalMainTempStr, rootDir, logger)
-      : globalMainTempStr;
+    const htmlTemplate = config.template
+      ? readTemplate(config.template, globalHtmlTemplate, rootDir, logger)
+      : globalHtmlTemplate;
+    const appTemplate = config.appTemplate
+      ? readTemplate(config.appTemplate, globalAppTemplate, rootDir, logger)
+      : globalAppTemplate;
+    const mainTemplate = config.mainTemplate
+      ? readTemplate(config.mainTemplate, globalMainTemplate, rootDir, logger)
+      : globalMainTemplate;
 
     for (const entry of entryList) {
       const { outputPath, htmlRelativePath, isDefaultEntry, outputDefaultEntry } = resolvePagePaths(
@@ -345,13 +356,21 @@ async function generateFiles(
         mkdirSync(generatedEntryDir, { recursive: true });
       }
 
-      // 写入 main.ts
       const mainPath = resolve(generatedEntryDir, "main.ts");
-      writeFileSync(mainPath, mainTempStr, "utf-8");
+      const appPath = resolve(generatedEntryDir, "app.vue");
+      const templateOutputs = new Map<string, string>();
+      if (mainTemplate.filename) templateOutputs.set(mainTemplate.filename, mainPath);
+      if (appTemplate.filename) templateOutputs.set(appTemplate.filename, appPath);
+
+      // 写入 main.ts，同时将外部引用重定位到生成入口所在目录。
+      writeFileSync(
+        mainPath,
+        relocateTemplateImports(mainTemplate, mainPath, templateOutputs),
+        "utf-8",
+      );
       logger.info(`生成 main.ts: ${mainPath}`);
 
       // 写入 app.vue
-      const appPath = resolve(generatedEntryDir, "app.vue");
       let absolutePagePath: string;
 
       if (config.component) {
@@ -372,13 +391,16 @@ async function generateFiles(
 
       writeFileSync(
         appPath,
-        appTempStr.replace("// @Page", `import Page from '${absolutePagePath}'`),
+        relocateTemplateImports(appTemplate, appPath, templateOutputs).replace(
+          "// @Page",
+          `import Page from '${absolutePagePath}'`,
+        ),
         "utf-8",
       );
       logger.info(`生成 app.vue: ${appPath}`);
 
       // 写入 HTML
-      const htmlContent = generateHtml(htmlTempStr, outputPath, config, generatedDirName);
+      const htmlContent = generateHtml(htmlTemplate.content, outputPath, config, generatedDirName);
       // htmlRelativePath 是逻辑相对路径（如 index.html），物理上写入 generatedDir
       const htmlPath = resolve(
         generatedDir,

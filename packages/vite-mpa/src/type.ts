@@ -89,6 +89,7 @@ export interface Config {
    * - `// @Page`：会被替换为页面组件导入语句
    *
    * 若不指定，将沿用全局 `appTemplate` 或内置默认模板。
+   * 自定义模板脚本中的相对模块引用基于模板所在目录，在生成时自动重定位。
    */
   appTemplate?: string;
 
@@ -97,6 +98,7 @@ export interface Config {
    * 优先级高于插件选项中的全局 `mainTemplate`。
    *
    * 若不指定，将沿用全局 `mainTemplate` 或内置默认模板。
+   * 相对模块引用基于模板所在目录；`./app.vue` 始终指向生成的应用壳。
    */
   mainTemplate?: string;
 }
@@ -162,6 +164,7 @@ export interface ViteMpaOptions {
 
   /**
    * 自定义 `main.ts` 模板文件路径（相对于 Vite root 或绝对路径）。
+   * 相对模块引用基于模板所在目录，在生成时自动重定位；`./app.vue` 保留。
    */
   mainTemplate?: string;
 

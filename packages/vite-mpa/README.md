@@ -60,6 +60,28 @@ export default defineConfig({
 
 ---
 
+## 模板中的相对模块路径
+
+自定义 `mainTemplate` 和 `appTemplate` 中的模块引用，以模板文件所在目录为基准编写。
+插件生成每个页面时会重新计算相对路径，无需改成 `/src/...`：
+
+```ts
+// template/main.ts
+import App from "./app.vue";
+import "../src/styles/entry";
+
+// 生成到 .generated/tools/about/main.ts 后
+import App from "./app.vue";
+import "../../../src/styles/entry";
+```
+
+`./app.vue` 保留为生成的应用壳。引用本次选用的自定义模板文件时，也会指向对应的生成文件。
+页面级覆盖和全局回退均使用实际模板的来源路径，原模板文件不会被修改。
+
+支持 JS/TS 静态 import/export、类型导入及字面量 `import()`，包括 Vue 的 `<script>`
+和 `<script setup>`。资源路径的 query/hash 会保留，包名、alias、根路径以及注释和普通字符串不会被改写。
+包含变量的动态路径、HTML/CSS 中的 URL 和 SFC 的外部 `src` 属性不在模块引用转换范围内。
+
 ## 🌈 SSG (静态站点生成) 支持
 
 本插件与 `vite-plugin-ssg` 深度兼容。通过导出的 `resolveMpaEntries` 工具函数，你可以轻松实现全自动的 MPA 预渲染。
