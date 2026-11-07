@@ -147,18 +147,6 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
       server.watcher.on("unlink", (f) => handleWatch(f, "unlink"));
     },
 
-    configurePreviewServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.url) {
-          const pathname = req.url.split("?")[0];
-          if (urlMap[pathname]) {
-            req.url = req.url.replace(pathname, urlMap[pathname]);
-          }
-        }
-        next();
-      });
-    },
-
     transformIndexHtml: {
       // order: 'post' 确保在 Vite 注入 script/link 资源引用之后运行
       // 此时 HTML 中已有带 hash 的资源路径，且不含用户导航链接（用户链接是客户端路由）
@@ -192,25 +180,28 @@ export function mpaPlugin(options: ViteMpaOptions = {}): Plugin {
       },
     },
 
-    generateBundle(_, bundle) {
-      // 仅重命名 bundle 中以 .generated/ 开头的文件（如能命中）
-      // HTML 路径已由 transformIndexHtml 在内存阶段修复，此处无需再处理 HTML 内容
-      const gDir = options.generatedDir || ".generated";
-      const gDirName = basename(gDir);
-      const prefix = `${gDirName}/`;
+    generateBundle: {
+      order: "post",
+      handler(_, bundle) {
+        // 仅重命名 bundle 中以 .generated/ 开头的文件（如能命中）
+        // HTML 路径已由 transformIndexHtml 在内存阶段修复，此处无需再处理 HTML 内容
+        const gDir = options.generatedDir || ".generated";
+        const gDirName = basename(gDir);
+        const prefix = `${gDirName}/`;
 
-      for (const fileName of Object.keys(bundle)) {
-        if (fileName.startsWith(prefix)) {
-          const asset = bundle[fileName];
-          const newFileName = fileName.slice(prefix.length);
+        for (const fileName of Object.keys(bundle)) {
+          if (fileName.startsWith(prefix)) {
+            const asset = bundle[fileName];
+            const newFileName = fileName.slice(prefix.length);
 
-          if (bundle[newFileName]) continue;
+            if (bundle[newFileName]) continue;
 
-          asset.fileName = newFileName;
-          bundle[newFileName] = asset;
-          delete bundle[fileName];
+            if (asset.type !== "asset") continue;
+            this.emitFile({ type: "asset", fileName: newFileName, source: asset.source });
+            delete bundle[fileName];
+          }
         }
-      }
+      },
     },
 
     closeBundle() {
@@ -503,7 +494,6 @@ export async function resolveMpaEntries(
     opt ? (isAbsolute(opt) ? opt : resolve(rootDir, opt)) : resolve(rootDir, fallback);
 
   const generatedDir = resolvePath(options.generatedDir, ".generated");
-  const generatedDirName = basename(generatedDir);
 
   const mpaEntries: Array<{ entry: string; html: string }> = [];
 
@@ -516,14 +506,10 @@ export async function resolveMpaEntries(
 
       const entryPath = join(generatedDir, outputPath, "main.ts");
 
-      // html 使用带 generatedDirName 前缀的路径，反映构建产物的真实位置
-      // SSG 的 closeBundle(order: pre) 会在 MPA closeBundle 移动文件前读取这个路径
-      // MPA closeBundle 随后才将文件从 .generated/ 移动到 dist 根目录
-      const htmlWithPrefix = normalizePath(join(generatedDirName, htmlRelativePath));
-
+      // generateBundle 已将 HTML 移到最终位置，SSG 和预览均使用该路径。
       mpaEntries.push({
         entry: normalizePath(entryPath),
-        html: htmlWithPrefix,
+        html: htmlRelativePath,
       });
     }
   }

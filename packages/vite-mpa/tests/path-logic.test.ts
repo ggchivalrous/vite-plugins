@@ -81,17 +81,17 @@ describe("vite-plugin-mpa - 路径逻辑验证", () => {
 
     expect(entries).toHaveLength(2);
 
-    // 验证第一个入口 (home -> .generated-path-test/index.html)
-    const homeEntry = entries.find((e) => e.html === ".generated-path-test/index.html");
+    // 验证首页输出路径
+    const homeEntry = entries.find((e) => e.html === "index.html");
     expect(homeEntry).toBeDefined();
     // entry 物理路径应包含 .generated
     expect(homeEntry?.entry).toContain(".generated-path-test/home/main.ts");
 
-    // 验证第二个入口 (tools/font -> .generated-path-test/tools/font/index.html)
-    const fontEntry = entries.find((e) => e.html === ".generated-path-test/tools/font/index.html");
+    // 验证嵌套页输出路径
+    const fontEntry = entries.find((e) => e.html === "tools/font/index.html");
     expect(fontEntry).toBeDefined();
     expect(fontEntry?.entry).toContain(".generated-path-test/tools/font/main.ts");
-    // html 路径现在包含 .generated，以供 SSG 在 closeBundle 搬移前读取
-    expect(fontEntry?.html).toContain(".generated-path-test");
+    // generateBundle 已移除生成目录前缀
+    expect(fontEntry?.html).not.toContain(".generated-path-test");
   });
 });

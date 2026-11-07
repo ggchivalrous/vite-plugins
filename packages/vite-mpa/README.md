@@ -54,7 +54,7 @@ export default defineConfig({
 
 1. **构建中**：所有生成的临时 HTML 存放在 `.generated/` 目录中。
 2. **路径修复**：插件会自动解析注入的 JS/CSS 资源路径，确保它们与最终平铺后的位置匹配。
-3. **构建后**：将产物从 `.generated/` 物理移动到 `dist/` 根目录。
+3. **写入产物前**：在 HTML 生成完成后，将产物输出到 `dist/` 下的最终路径。
 
 这意味着你的 `dist` 目录结构将非常直观，不再被工具链生成的临时目录所干扰。
 
@@ -63,6 +63,9 @@ export default defineConfig({
 ## 🌈 SSG (静态站点生成) 支持
 
 本插件与 `vite-plugin-ssg` 深度兼容。通过导出的 `resolveMpaEntries` 工具函数，你可以轻松实现全自动的 MPA 预渲染。
+
+`resolveMpaEntries` 返回的 `entry` 指向生成的源模块，`html` 指向最终输出文件，
+不带 `.generated/` 前缀。预览服务器直接使用最终页面路径。
 
 ```typescript
 import { defineConfig } from "vite";

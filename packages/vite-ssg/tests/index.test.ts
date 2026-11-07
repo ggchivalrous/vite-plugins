@@ -55,9 +55,12 @@ describe("@ggcv/vite-plugin-ssg", () => {
       expect(plugin.name).toBe("vite-plugin-ssg");
     });
 
-    it("apply 应为 'build'（仅在构建阶段生效）", () => {
+    it("仅在客户端构建阶段生效，避免递归执行 SSR 构建", () => {
       const plugin = ssgPlugin({ entries: [] });
-      expect(plugin.apply).toBe("build");
+      const apply = plugin.apply as (config: any, env: any) => boolean;
+      expect(apply({}, { command: "build" })).toBe(true);
+      expect(apply({}, { command: "serve" })).toBe(false);
+      expect(apply({ build: { ssr: true } }, { command: "build" })).toBe(false);
     });
 
     it("enforce 应为 'post'（在最后执行）", () => {

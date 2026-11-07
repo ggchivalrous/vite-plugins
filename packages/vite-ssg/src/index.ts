@@ -1,14 +1,14 @@
-import type { InlineConfig, Plugin, ResolvedConfig, UserConfig } from "vite";
+import type { Plugin, ResolvedConfig, UserConfig } from "vite";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createServer } from "vite";
+import { buildRenderer } from "./build";
 
 /**
  * 单个 SSG 页面入口
  */
 export interface SSGEntry {
   /**
-   * SSR 入口模块路径（供 `vite.ssrLoadModule()` 加载）
+   * SSR 入口模块路径（将构建为生产环境模块）
    *
    * - 相对路径将基于 Vite root 解析
    * - 支持 Vite 的 alias 路径
@@ -32,7 +32,7 @@ export interface SSGEntry {
  */
 export interface SSGRenderContext {
   /**
-   * 入口模块的导出对象（通过 vite.ssrLoadModule 加载得到）
+   * 入口模块的导出对象（通过生产 SSR 构建后加载得到）
    */
   module: Record<string, any>;
 
@@ -153,7 +153,7 @@ export interface SSGPluginOptions {
   /**
    * SSR 环境的 Vite 配置覆盖
    *
-   * 用于配置 SSR 专用的 Vite server（别名、依赖打包策略等）。
+   * 用于配置 SSR 专用的 Vite build（别名、依赖打包策略等）。
    * 将与从 Vite resolvedConfig 中继承的配置合并。
    */
   ssrViteConfig?: UserConfig;
@@ -351,20 +351,27 @@ export function ssgPlugin(options: SSGPluginOptions): Plugin {
   } = options;
 
   let resolvedConfig: ResolvedConfig;
+  let buildFailed = false;
 
   return {
     name: "vite-plugin-ssg",
-    apply: "build",
+    apply: (config, { command }) => command === "build" && !config.build?.ssr,
     enforce: "post",
 
     configResolved(config) {
       resolvedConfig = config;
     },
 
+    buildEnd(error) {
+      buildFailed = Boolean(error);
+    },
+
     closeBundle: {
       sequential: true,
       order: "pre",
       async handler() {
+        if (buildFailed || resolvedConfig.build.write === false) return;
+
         if (!enabled) {
           console.log(`⏭️ [${logPrefix}] 已禁用，跳过预渲染。`);
           return;
@@ -390,98 +397,63 @@ export function ssgPlugin(options: SSGPluginOptions): Plugin {
 
         console.log(`\n🚀 [${logPrefix}] 开始静态预渲染（共 ${entries.length} 个入口）...`);
 
-        // 4. 合并 SSR Vite server 配置
-        //    继承用户 Vite 配置中的 alias，与 ssrViteConfig 合并
-        const inheritedAlias: Record<string, string> = {};
-        const userAlias = resolvedConfig.resolve.alias;
-        if (Array.isArray(userAlias)) {
-          for (const item of userAlias) {
-            if (typeof item.find === "string") {
-              inheritedAlias[item.find] = item.replacement;
-            }
-          }
-        }
+        const renderer = await buildRenderer(resolvedConfig, entries, options.ssrViteConfig);
 
-        const ssrServerConfig: InlineConfig = {
-          // 使用原始配置文件路径确保 SSR server 能加载 vue 等插件
-          configFile: resolvedConfig.configFile,
-          // root 使用 vite.config.ts 所在目录（而非 resolvedConfig.root），
-          // 因为用户可能设置了 root: 'html' 等子目录，
-          // 而 auto-import 等插件的相对路径基于 configFile 所在目录解析
-          root: resolvedConfig.configFile ? path.dirname(resolvedConfig.configFile) : projectRoot,
-          // 继承开发/构建模式，确保插件逻辑一致性
-          mode: resolvedConfig.mode,
-          // 继承环境配置，确保 SSR 服务加载相同的 .env 文件
-          envDir: resolvedConfig.envDir,
-          envPrefix: resolvedConfig.envPrefix,
-          server: { middlewareMode: true },
-          appType: "custom",
-          // 合并用户的 ssrViteConfig（但 resolve.alias 需特殊合并）
-          ...options.ssrViteConfig,
-          resolve: {
-            ...options.ssrViteConfig?.resolve,
-            alias: {
-              ...inheritedAlias,
-              ...(options.ssrViteConfig?.resolve?.alias as Record<string, string>),
-            },
-          },
-        };
-
-        const vite = await createServer(ssrServerConfig);
-
-        // 5. 逐个渲染入口
+        // 逐个渲染入口
         let successCount = 0;
         let failCount = 0;
 
-        for (const entry of entries) {
-          const htmlPath = path.resolve(outDir, entry.html);
+        try {
+          for (const [index, entry] of entries.entries()) {
+            const htmlPath = path.resolve(outDir, entry.html);
 
-          try {
-            // 检查 HTML 文件是否存在
-            const htmlContent = await fs.readFile(htmlPath, "utf8");
+            try {
+              // 检查 HTML 文件是否存在
+              const htmlContent = await fs.readFile(htmlPath, "utf8");
 
-            // 加载 SSR 入口模块
-            const ssrModule = await vite.ssrLoadModule(entry.entry);
+              // 加载 SSR 入口模块
+              const ssrModule = await renderer.loadModule(index);
 
-            // 执行渲染
-            let result: SSGRenderResult;
+              // 执行渲染
+              let result: SSGRenderResult;
 
-            if (render) {
-              // 使用自定义渲染函数
-              result = await render({
-                module: ssrModule,
-                entry,
-                html: htmlContent,
-              });
-            } else {
-              // 使用默认 Vue 渲染
-              result = await defaultVueRender(
-                { module: ssrModule, entry, html: htmlContent },
-                appSelector,
-                serverRenderedAttr,
-                createAppFn,
-              );
+              if (render) {
+                // 使用自定义渲染函数
+                result = await render({
+                  module: ssrModule,
+                  entry,
+                  html: htmlContent,
+                });
+              } else {
+                // 使用默认 Vue 渲染
+                result = await defaultVueRender(
+                  { module: ssrModule, entry, html: htmlContent },
+                  appSelector,
+                  serverRenderedAttr,
+                  createAppFn,
+                );
+              }
+
+              await fs.writeFile(htmlPath, renderer.resolveHtml(result.html, entry), "utf8");
+
+              const displayPath = path.relative(outDir, htmlPath);
+              console.log(`   ✅ ${displayPath}`);
+              successCount++;
+            } catch (err: any) {
+              failCount++;
+              console.error(`   ❌ ${entry.html}`);
+              console.error(`      ${err.message || err}`);
             }
-
-            await fs.writeFile(htmlPath, result.html, "utf8");
-
-            const displayPath = path.relative(outDir, htmlPath);
-            console.log(`   ✅ ${displayPath}`);
-            successCount++;
-          } catch (err: any) {
-            failCount++;
-            console.error(`   ❌ ${entry.html}`);
-            console.error(`      ${err.message || err}`);
           }
+        } finally {
+          await renderer.close();
         }
 
-        // 6. 关闭 SSR 服务
-        await vite.close();
+        if (failCount > 0) {
+          throw new Error(`[${logPrefix}] ${failCount} 个页面预渲染失败。`);
+        }
 
-        const status = failCount > 0 ? "⚠️" : "🎉";
-        console.log(
-          `\n${status} [${logPrefix}] 预渲染完成！成功 ${successCount}，失败 ${failCount}。\n`,
-        );
+        console.log(`\n🎉 [${logPrefix}] 预渲染完成！成功 ${successCount}，失败 ${failCount}。\n`);
       },
     },
   };

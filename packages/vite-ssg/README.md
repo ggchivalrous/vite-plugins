@@ -24,7 +24,7 @@
 | ---------------- | ---------------------------------- | -------------------------------------------- |
 | `entries` ⚡必填 | `SSGEntry[]` \| `() => SSGEntry[]` | 需要预渲染的页面列表                         |
 | `render`         | `(ctx) => { html }`                | 自定义渲染函数（默认 Vue SSR）               |
-| `ssrViteConfig`  | `UserConfig`                       | SSR 服务器的 Vite 配置覆盖                   |
+| `ssrViteConfig`  | `UserConfig`                       | 生产 SSR 构建的 Vite 配置覆盖                |
 | `mock`           | `boolean`                          | 是否安装 happy-dom Mock（默认 `true`）       |
 | `appSelector`    | `string`                           | HTML 占位标记（默认 `<div id="app"></div>`） |
 | `createAppFn`    | `string`                           | 入口导出函数名（默认 `createApp`）           |
@@ -34,12 +34,26 @@
 
 ```ts
 interface SSGEntry {
-  entry: string; // SSR 入口模块路径（供 vite.ssrLoadModule 加载）
+  entry: string; // SSR 入口模块路径（构建后加载，支持相对路径和 alias）
   html: string; // 输出 HTML 路径（相对于 build.outDir）
 }
 ```
 
 ## 使用示例
+
+### 生产资源处理
+
+插件在客户端构建完成后，额外构建 SSR 入口，并使用生产模块生成静态 HTML。
+图片等资源由 Vite 统一处理 hash、内联和 `public` 地址，无需开启 `build.manifest`，
+也无需通过自定义 `render` 替换源码资源地址。自定义 `render` 同样接收生产模块。
+
+自动继承 `base`、资源输出规则及环境配置。`base: './'` 或 `base: ''` 时，
+导入资源的 URL 按每个输出 HTML 的目录计算，支持首页和嵌套页面。
+SSR 分支独有的资源也会写入站点输出目录。临时 SSR 模块在结束后删除；
+入口构建或页面渲染失败会使整个构建失败。
+
+`ssrViteConfig` 现在用于覆盖生产 SSR 构建配置；仅开发服务器使用的配置不再参与预渲染。
+插件自动管理 SSR 入口、临时输出目录和 ESM 模块格式。
 
 ### Vue 单页应用（最简）
 
